@@ -12,12 +12,13 @@ import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { Transaction } from '@/lib/types';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 export default function TransactionsPage() {
   const { transactions, deleteTransaction } = useAppData();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  // const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined);
+  // const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined); // Edit functionality can be added later
 
 
   // const handleEdit = (transaction: Transaction) => {
@@ -25,15 +26,13 @@ export default function TransactionsPage() {
   //   setIsAddDialogOpen(true);
   // };
   
-  const handleDelete = (transactionId: string) => {
-    if (confirm('Are you sure you want to delete this transaction?')) {
-        deleteTransaction(transactionId);
-    }
+  const handleDeleteConfirmation = (transactionId: string) => {
+    deleteTransaction(transactionId);
   };
 
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader title="Transactions">
         <Button onClick={() => { /*setEditingTransaction(undefined);*/ setIsAddDialogOpen(true); }}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Transaction
@@ -43,12 +42,12 @@ export default function TransactionsPage() {
       <AddTransactionDialog 
         open={isAddDialogOpen} 
         onOpenChange={setIsAddDialogOpen}
-        // defaultTransaction={editingTransaction}
+        // defaultTransaction={editingTransaction} // Pass for editing
       />
       
-      <ScrollArea className="h-[calc(100vh-200px)]">
+      <ScrollArea className="h-[calc(100vh-220px)]"> {/* Adjusted height slightly */}
         <Table>
-          <TableCaption>A list of your recent transactions.</TableCaption>
+          <TableCaption>{transactions.length > 0 ? 'A list of your recent transactions.' : 'No transactions yet. Click "Add Transaction" to get started.'}</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
@@ -67,10 +66,10 @@ export default function TransactionsPage() {
                 <TableCell><Badge variant="outline">{transaction.category}</Badge></TableCell>
                 <TableCell>
                   <Badge 
-                    variant="outline"
+                    variant={transaction.type === 'income' ? 'default' : 'destructive'}
                     className={cn(
-                      "font-semibold",
-                      transaction.type === 'income' ? 'text-[hsl(var(--chart-3))] border-[hsl(var(--chart-3))]' : 'text-destructive border-destructive'
+                        "font-semibold",
+                        transaction.type === 'income' ? 'bg-[hsl(var(--chart-3))] text-primary-foreground border-[hsl(var(--chart-3))]' : 'bg-destructive text-destructive-foreground border-destructive'
                     )}
                   >
                     {transaction.type}
@@ -85,17 +84,41 @@ export default function TransactionsPage() {
                   {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {/* <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} className="mr-2">
+                  {/* Edit button can be re-enabled when edit functionality is complete */}
+                  {/* <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} className="mr-2 hover:bg-accent">
                     <Edit className="h-4 w-4" />
                   </Button> */}
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(transaction.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="hover:bg-accent">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete this transaction.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteConfirmation(transaction.id)}
+                          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </TableCell>
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">No transactions yet.</TableCell>
+                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                  No transactions recorded.
+                </TableCell>
               </TableRow>
             )}
           </TableBody>

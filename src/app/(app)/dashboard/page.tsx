@@ -24,7 +24,7 @@ const ICON_MAP = {
   "Shopping": <TrendingDown className="h-6 w-6 text-destructive" />,
   "Salary": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
   "Investments": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
-  "Gifts": <DollarSign className="h-6 w-6 text-[hsl(var(--chart-4))]" />, // Using chart-4 (orange) for gifts
+  "Gifts": <DollarSign className="h-6 w-6 text-[hsl(var(--chart-4))]" />, 
   "Other": <BarChart className="h-6 w-6 text-muted-foreground" />,
   "Freelance": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
   "Dividends": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
@@ -76,7 +76,7 @@ export default function DashboardPage() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader title="Dashboard">
         <Button asChild>
           <Link href="/transactions?action=add">

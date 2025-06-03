@@ -46,19 +46,21 @@ export default function SettingsPage() {
       updateAccount({ ...primaryAccount, name: data.accountName, balance: data.initialBalance });
       toast({ title: "Account Updated", description: `${data.accountName} balance set to ₹${data.initialBalance.toFixed(2)}.` });
     } else {
+      // This app currently supports only one account, so we update if exists, or add if not.
+      // If multiple accounts were supported, this logic would need to differentiate adding a new one vs. creating the first.
       addAccount({ name: data.accountName, balance: data.initialBalance });
-      toast({ title: "Account Added", description: `${data.accountName} created with balance ₹${data.initialBalance.toFixed(2)}.` });
+      toast({ title: "Account Created", description: `${data.accountName} created with balance ₹${data.initialBalance.toFixed(2)}.` });
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>
-          <CardTitle>Account Management</CardTitle>
-          <CardDescription>Manage your primary account details.</CardDescription>
+          <CardTitle>{primaryAccount ? 'Manage Account' : 'Create Account'}</CardTitle>
+          <CardDescription>{primaryAccount ? 'Manage your primary account details.' : 'Set up your primary account.'}</CardDescription>
         </CardHeader>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">

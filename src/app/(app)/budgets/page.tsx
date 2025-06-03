@@ -9,6 +9,7 @@ import { BudgetFormDialog } from '@/components/budgets/budget-form-dialog';
 import { PageHeader } from '@/components/shared/page-header';
 import { PlusCircle, Edit, Trash2, TrendingDown } from 'lucide-react';
 import type { BudgetGoal } from '@/lib/types';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function BudgetsPage() {
   const { budgets, deleteBudget, getCategorySpentAmount } = useAppData();
@@ -19,7 +20,6 @@ export default function BudgetsPage() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
-    // Update month and year if they change, to re-fetch spent amounts correctly
     const now = new Date();
     setCurrentMonth(now.getMonth());
     setCurrentYear(now.getFullYear());
@@ -36,15 +36,12 @@ export default function BudgetsPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (budgetId: string) => {
-    // Consider using AlertDialog for confirmation
-    if (confirm('Are you sure you want to delete this budget?')) {
-        deleteBudget(budgetId);
-    }
+  const handleDeleteConfirmation = (budgetId: string) => {
+    deleteBudget(budgetId);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader title="Budgets">
         <Button onClick={handleAddNew}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Budget
@@ -96,9 +93,30 @@ export default function BudgetsPage() {
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(budget)}>
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(budget.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete this budget.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteConfirmation(budget.id)}
+                          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </CardFooter>
               </Card>
             );
