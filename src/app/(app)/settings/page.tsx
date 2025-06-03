@@ -194,13 +194,13 @@ export default function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all your current data and reset the application to its demo state.
+                  This action cannot be undone. This will permanently delete all your current application data (transactions, budgets, accounts) and reset the application to its initial demo state.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleResetData} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                  Yes, Reset Data
+                  Yes, Reset All Data
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
