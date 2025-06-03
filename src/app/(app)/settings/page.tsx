@@ -14,11 +14,12 @@ import { useEffect, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
-import { Download, RotateCcw, CalendarCog, Loader2 } from 'lucide-react';
+import { Download, RotateCcw, CalendarCog, Loader2, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import type { Transaction } from '@/lib/types';
 
 const accountFormSchema = z.object({
   accountName: z.string().min(1, "Account name is required"),
-  // Balance management is now primarily through transactions, but allow direct setting here.
   initialBalance: z.coerce.number().min(0, "Balance cannot be negative"),
 });
 type AccountFormValues = z.infer<typeof accountFormSchema>;
@@ -31,21 +32,22 @@ type SystemDateFormValues = z.infer<typeof systemDateFormSchema>;
 
 export default function SettingsPage() {
   const { 
-    accounts, updateAccount, updateAccountBalance, // addAccount is less relevant if we stick to one primary
+    accounts, updateAccount, updateAccountBalance,
     getAllData, resetAllData,
     systemMonth, systemYear, setSystemDate,
     isDataLoading
   } = useAppData();
   const { toast } = useToast();
   const [isProcessingReset, setIsProcessingReset] = useState(false);
-  const [isProcessingExport, setIsProcessingExport] = useState(false);
+  const [isProcessingJSONExport, setIsProcessingJSONExport] = useState(false);
+  const [isProcessingXLSXExport, setIsProcessingXLSXExport] = useState(false);
   
   const primaryAccount = accounts.length > 0 ? accounts[0] : null;
 
   const accountForm = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      accountName: "Main Account", // Default placeholder
+      accountName: "Main Account",
       initialBalance: 0,
     }
   });
@@ -53,8 +55,8 @@ export default function SettingsPage() {
   const systemDateForm = useForm<SystemDateFormValues>({
     resolver: zodResolver(systemDateFormSchema),
     defaultValues: {
-      month: systemMonth, // Will be updated by useEffect
-      year: systemYear,   // Will be updated by useEffect
+      month: systemMonth,
+      year: systemYear,
     }
   });
 
@@ -73,16 +75,12 @@ export default function SettingsPage() {
 
   const onAccountSubmit = async (data: AccountFormValues) => {
     if (primaryAccount) {
-      // Update name via updateAccount, balance via updateAccountBalance
       await updateAccount({ ...primaryAccount, name: data.accountName });
-      // Check if balance changed before calling update, to avoid unnecessary Firestore write
       if (primaryAccount.balance !== data.initialBalance) {
         await updateAccountBalance(primaryAccount.id, data.initialBalance);
       }
       toast({ title: "Account Updated", description: `${data.accountName} settings saved.` });
     } 
-    // Creation of new "primary" account handled by context if it doesn't exist.
-    // Here we mainly manage the existing primary account.
   };
 
   const onSystemDateSubmit = async (data: SystemDateFormValues) => {
@@ -90,8 +88,8 @@ export default function SettingsPage() {
     toast({ title: "System Date Updated", description: `System date set to ${format(new Date(data.year, data.month), 'MMMM yyyy')}.` });
   };
 
-  const handleExportData = async () => {
-    setIsProcessingExport(true);
+  const handleExportDataJSON = async () => {
+    setIsProcessingJSONExport(true);
     try {
       const data = await getAllData();
       const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
@@ -99,12 +97,61 @@ export default function SettingsPage() {
       link.href = jsonString;
       link.download = `frugalflow_data_${format(new Date(), 'yyyy-MM-dd')}.json`;
       link.click();
-      toast({ title: "Data Exported", description: "Your data has been downloaded as a JSON file." });
+      toast({ title: "Data Exported (JSON)", description: "Your data has been downloaded as a JSON file." });
     } catch (error) {
-      console.error("Export error:", error);
-      toast({ title: "Export Failed", description: "Could not export data.", variant: "destructive" });
+      console.error("JSON Export error:", error);
+      toast({ title: "JSON Export Failed", description: "Could not export data as JSON.", variant: "destructive" });
     } finally {
-      setIsProcessingExport(false);
+      setIsProcessingJSONExport(false);
+    }
+  };
+
+  const handleExportDataXLSX = async () => {
+    setIsProcessingXLSXExport(true);
+    try {
+      const { transactions } = await getAllData();
+
+      if (transactions.length === 0) {
+        toast({ title: "No Data to Export", description: "There are no transactions to export to XLSX.", variant: "default" });
+        return;
+      }
+
+      const groupedTransactions: Record<string, Transaction[]> = {};
+      transactions.forEach(t => {
+        const monthYearKey = format(new Date(t.date), 'yyyy-MM');
+        if (!groupedTransactions[monthYearKey]) {
+          groupedTransactions[monthYearKey] = [];
+        }
+        groupedTransactions[monthYearKey].push(t);
+      });
+
+      const workbook = XLSX.utils.book_new();
+
+      Object.keys(groupedTransactions).sort().forEach(monthYearKey => {
+        const sheetName = format(new Date(monthYearKey + '-01'), 'MMM yyyy'); // Ensure date is parsed correctly for sheet name
+        const monthTransactions = groupedTransactions[monthYearKey];
+        
+        const sheetData = monthTransactions.map(t => ({
+          Date: format(new Date(t.date), 'yyyy-MM-dd'),
+          Description: t.description,
+          Category: t.category,
+          Type: t.type,
+          'Amount (₹)': t.amount.toFixed(2),
+          Vendor: t.vendor || '',
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetData);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      });
+      
+      XLSX.writeFile(workbook, `frugalflow_monthly_export_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      toast({ title: "Data Exported (XLSX)", description: "Your data has been exported month-wise as an XLSX file." });
+
+    } catch (error) {
+      console.error("XLSX Export error:", error);
+      toast({ title: "XLSX Export Failed", description: "Could not export data as XLSX.", variant: "destructive" });
+    } finally {
+      setIsProcessingXLSXExport(false);
     }
   };
 
@@ -112,7 +159,16 @@ export default function SettingsPage() {
     setIsProcessingReset(true);
     try {
       await resetAllData();
-      toast({ title: "Data Reset", description: "All transactions and budgets have been deleted. Your account balance has been reset to ₹0.00.", variant: "destructive" });
+      // Ensure accountForm and systemDateForm are reset to reflect the new state
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      systemDateForm.reset({ month: currentMonth, year: currentYear });
+      if (accounts.length > 0 && accounts[0].name) { // Check if account exists before trying to reset form with its name
+         accountForm.reset({ accountName: accounts[0].name, initialBalance: 0 });
+      } else {
+         accountForm.reset({ accountName: "Main Account", initialBalance: 0 });
+      }
+      toast({ title: "Data Reset", description: "All transactions and budgets have been deleted. Your primary account balance has been reset to ₹0.00.", variant: "destructive" });
     } catch (error) {
       console.error("Reset error:", error);
       toast({ title: "Reset Failed", description: "Could not reset data.", variant: "destructive" });
@@ -128,7 +184,7 @@ export default function SettingsPage() {
 
   const currentSystemDateFormatted = format(new Date(systemYear, systemMonth), 'MMMM yyyy');
 
-  if (isDataLoading && !primaryAccount) { // Show loading only if critical data isn't there yet
+  if (isDataLoading && !primaryAccount) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -154,7 +210,7 @@ export default function SettingsPage() {
               {accountForm.formState.errors.accountName && <p className="text-sm text-destructive">{accountForm.formState.errors.accountName.message}</p>}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="initialBalance">Current Balance (₹) - Set initial or adjust</Label>
+              <Label htmlFor="initialBalance">Current Balance (₹)</Label>
               <Input id="initialBalance" type="number" step="0.01" {...accountForm.register("initialBalance")} disabled={!primaryAccount || accountForm.formState.isSubmitting}/>
               {accountForm.formState.errors.initialBalance && <p className="text-sm text-destructive">{accountForm.formState.errors.initialBalance.message}</p>}
               <p className="text-xs text-muted-foreground">Note: Balance is primarily updated by transactions. This field allows direct adjustment or setting an initial balance.</p>
@@ -216,12 +272,16 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Data Management</CardTitle>
-          <CardDescription>Export your current data or reset all application data to a clean slate.</CardDescription>
+          <CardDescription>Export your current data or reset all application data.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4">
-          <Button onClick={handleExportData} variant="outline" disabled={isProcessingExport}>
-            {isProcessingExport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-             Export Data
+          <Button onClick={handleExportDataJSON} variant="outline" disabled={isProcessingJSONExport}>
+            {isProcessingJSONExport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+             Export JSON
+          </Button>
+          <Button onClick={handleExportDataXLSX} variant="outline" disabled={isProcessingXLSXExport}>
+            {isProcessingXLSXExport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+             Export XLSX (Month-wise)
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
