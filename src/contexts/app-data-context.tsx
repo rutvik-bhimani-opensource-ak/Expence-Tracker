@@ -3,7 +3,10 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Transaction, BudgetGoal, Account, Category } from '@/lib/types';
-import { AllCategories } from '@/lib/types'; // Assuming these are defined in types.ts
+// AllCategories is not directly used in this file anymore, but Expense/IncomeCategories are used in AddTransactionDialog
+// For simplicity, if not needed here directly, we could remove the AllCategories import.
+// For now, keeping it as it doesn't harm.
+import { AllCategories } from '@/lib/types'; 
 
 interface AppDataContextType {
   transactions: Transaction[];
@@ -22,17 +25,15 @@ interface AppDataContextType {
   systemYear: number;
   setSystemDate: (month: number, year: number) => void;
   resetAllData: () => void;
-  getAllData: () => { transactions: Transaction[]; budgets: BudgetGoal[]; accounts: Account[] };
+  getAllData: () => { transactions: Transaction[]; budgets: BudgetGoal[]; accounts: Account[], systemMonth: number, systemYear: number };
 }
 
-const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
+const AppDataContext = createContext<AppDataDataContextType | undefined>(undefined);
 
 const initialDemoTransactions: Transaction[] = [
-  { id: '1', date: new Date(new Date().setDate(new Date().getDate() - 2)).toISOString(), description: 'Groceries', amount: 75.50, category: 'Food', type: 'expense', vendor: 'SuperMart' },
-  { id: '2', date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(), description: 'Salary Deposit', amount: 2500, category: 'Salary', type: 'income', vendor: 'Tech Corp' },
+  { id: '1', date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 2).toISOString(), description: 'Groceries', amount: 75.50, category: 'Food', type: 'expense', vendor: 'SuperMart' },
+  { id: '2', date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1).toISOString(), description: 'Salary Deposit', amount: 2500, category: 'Salary', type: 'income', vendor: 'Tech Corp' },
   { id: '3', date: new Date().toISOString(), description: 'Coffee', amount: 4.75, category: 'Food', type: 'expense', vendor: 'Cafe Central' },
-  { id: '4', date: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString(), description: 'Gas Bill', amount: 60.00, category: 'Utilities', type: 'expense', vendor: 'City Gas' },
-  { id: '5', date: new Date(new Date().setDate(new Date().getDate() - 3)).toISOString(), description: 'Movie Tickets', amount: 30.00, category: 'Entertainment', type: 'expense', vendor: 'Cinema Plex' },
 ];
 
 const initialDemoBudgets: BudgetGoal[] = [
@@ -44,12 +45,87 @@ const initialDemoAccounts: Account[] = [
   { id: 'a1', name: 'Main Checking Account', balance: 5000 },
 ];
 
+const LOCAL_STORAGE_KEY_TRANSACTIONS = 'frugalflow_transactions';
+const LOCAL_STORAGE_KEY_BUDGETS = 'frugalflow_budgets';
+const LOCAL_STORAGE_KEY_ACCOUNTS = 'frugalflow_accounts';
+const LOCAL_STORAGE_KEY_SYSTEM_MONTH = 'frugalflow_systemMonth';
+const LOCAL_STORAGE_KEY_SYSTEM_YEAR = 'frugalflow_systemYear';
+
+
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialDemoTransactions);
-  const [budgets, setBudgets] = useState<BudgetGoal[]>(initialDemoBudgets);
-  const [accounts, setAccounts] = useState<Account[]>(initialDemoAccounts);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<BudgetGoal[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [systemMonth, setSystemMonthState] = useState<number>(new Date().getMonth());
   const [systemYear, setSystemYearState] = useState<number>(new Date().getFullYear());
+  const [isLoaded, setIsLoaded] = useState(false);
+
+
+  useEffect(() => {
+    const storedTransactions = localStorage.getItem(LOCAL_STORAGE_KEY_TRANSACTIONS);
+    const storedBudgets = localStorage.getItem(LOCAL_STORAGE_KEY_BUDGETS);
+    const storedAccounts = localStorage.getItem(LOCAL_STORAGE_KEY_ACCOUNTS);
+    const storedSystemMonth = localStorage.getItem(LOCAL_STORAGE_KEY_SYSTEM_MONTH);
+    const storedSystemYear = localStorage.getItem(LOCAL_STORAGE_KEY_SYSTEM_YEAR);
+
+    if (storedTransactions) {
+      setTransactions(JSON.parse(storedTransactions));
+    } else {
+      setTransactions(initialDemoTransactions);
+    }
+    if (storedBudgets) {
+      setBudgets(JSON.parse(storedBudgets));
+    } else {
+      setBudgets(initialDemoBudgets);
+    }
+    if (storedAccounts) {
+      setAccounts(JSON.parse(storedAccounts));
+    } else {
+      setAccounts(initialDemoAccounts);
+    }
+    if (storedSystemMonth) {
+      setSystemMonthState(JSON.parse(storedSystemMonth));
+    } else {
+      setSystemMonthState(new Date().getMonth());
+    }
+    if (storedSystemYear) {
+      setSystemYearState(JSON.parse(storedSystemYear));
+    } else {
+      setSystemYearState(new Date().getFullYear());
+    }
+    setIsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_TRANSACTIONS, JSON.stringify(transactions));
+    }
+  }, [transactions, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_BUDGETS, JSON.stringify(budgets));
+    }
+  }, [budgets, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
+    }
+  }, [accounts, isLoaded]);
+  
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_MONTH, JSON.stringify(systemMonth));
+    }
+  }, [systemMonth, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_YEAR, JSON.stringify(systemYear));
+    }
+  }, [systemYear, isLoaded]);
+
 
   const getCategorySpentAmount = useCallback((category: Category, month: number, year: number): number => {
     return transactions
@@ -60,14 +136,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions]);
 
+  // Recalculate budget spent amounts when transactions or system date change
   useEffect(() => {
-    setBudgets(prevBudgets =>
-      prevBudgets.map(budget => ({
-        ...budget,
-        spent: getCategorySpentAmount(budget.category, systemMonth, systemYear),
-      }))
-    );
-  }, [transactions, systemMonth, systemYear, getCategorySpentAmount]);
+    if (isLoaded) { // Only run if initial load from localStorage is complete
+      setBudgets(prevBudgets =>
+        prevBudgets.map(budget => ({
+          ...budget,
+          spent: getCategorySpentAmount(budget.category, systemMonth, systemYear),
+        }))
+      );
+    }
+  }, [transactions, systemMonth, systemYear, getCategorySpentAmount, isLoaded]);
 
 
   const updateAccountBalance = (accountId: string, newBalance: number) => {
@@ -75,7 +154,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction = { ...transaction, id: Date.now().toString() };
+    const newTransaction = { ...transaction, id: Date.now().toString() + Math.random().toString(36).substring(2, 15) };
     setTransactions(prev => [newTransaction, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     if (accounts.length > 0) {
       const account = accounts[0];
@@ -99,7 +178,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const addBudget = (budget: Omit<BudgetGoal, 'id' | 'spent'>) => {
     const newBudget = { 
       ...budget, 
-      id: Date.now().toString(), 
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 15), 
       spent: getCategorySpentAmount(budget.category, systemMonth, systemYear) 
     };
     setBudgets(prev => [...prev, newBudget]);
@@ -114,13 +193,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addAccount = (account: Omit<Account, 'id'>) => {
-    const newAccount = { ...account, id: Date.now().toString() };
-    // For simplicity, this app currently supports one main account.
-    // If adding, we replace the existing one or create if none.
+    const newAccount = { ...account, id: Date.now().toString() + Math.random().toString(36).substring(2, 15) };
     if (accounts.length > 0) {
-      setAccounts([{ ...newAccount, id: accounts[0].id }]); // Update existing
+      setAccounts([{ ...newAccount, id: accounts[0].id }]); 
     } else {
-      setAccounts([newAccount]); // Add new
+      setAccounts([newAccount]); 
     }
   };
   
@@ -135,17 +212,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const resetAllData = () => {
     setTransactions([]);
-    setBudgets([]); // Spent amounts will be 0 due to no transactions
+    setBudgets([]); 
     setAccounts(prevAccounts =>
-      prevAccounts.map((acc, index) =>
-        index === 0 ? { ...acc, balance: 0 } : acc // Reset balance of the first account to 0
-      )
+      prevAccounts.length > 0 ? [{ ...prevAccounts[0], balance: 0 }] : []
     );
-    // System date (month/year) remains as is.
+    // System date (month/year) remains as is by default, or could be reset to current actual date
+    // For now, it keeps the user-set system date.
+    
+    localStorage.removeItem(LOCAL_STORAGE_KEY_TRANSACTIONS);
+    localStorage.removeItem(LOCAL_STORAGE_KEY_BUDGETS);
+    localStorage.removeItem(LOCAL_STORAGE_KEY_ACCOUNTS);
+    // Optionally reset system date in localStorage too, or leave it
+    // localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_MONTH, JSON.stringify(new Date().getMonth()));
+    // localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_YEAR, JSON.stringify(new Date().getFullYear()));
+    // setSystemMonthState(new Date().getMonth()); // if you want to reset system date to actual current
+    // setSystemYearState(new Date().getFullYear());
   };
   
   const getAllData = () => {
-    return { transactions, budgets, accounts };
+    return { transactions, budgets, accounts, systemMonth, systemYear };
   };
 
 
@@ -158,7 +243,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       systemMonth, systemYear, setSystemDate,
       resetAllData, getAllData
     }}>
-      {children}
+      {isLoaded ? children : null /* Or a loading spinner */}
     </AppDataContext.Provider>
   );
 }
@@ -170,3 +255,4 @@ export function useAppData() {
   }
   return context;
 }
+
