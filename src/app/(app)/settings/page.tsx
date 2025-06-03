@@ -95,7 +95,7 @@ export default function SettingsPage() {
       const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
       const link = document.createElement("a");
       link.href = jsonString;
-      link.download = `frugalflow_data_${format(new Date(), 'yyyy-MM-dd')}.json`;
+      link.download = `budgetwise_data_${format(new Date(), 'yyyy-MM-dd')}.json`;
       link.click();
       toast({ title: "Data Exported (JSON)", description: "Your data has been downloaded as a JSON file." });
     } catch (error) {
@@ -113,6 +113,7 @@ export default function SettingsPage() {
 
       if (transactions.length === 0) {
         toast({ title: "No Data to Export", description: "There are no transactions to export to XLSX.", variant: "default" });
+        setIsProcessingXLSXExport(false);
         return;
       }
 
@@ -144,7 +145,7 @@ export default function SettingsPage() {
         XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
       });
       
-      XLSX.writeFile(workbook, `frugalflow_monthly_export_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      XLSX.writeFile(workbook, `budgetwise_monthly_export_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
       toast({ title: "Data Exported (XLSX)", description: "Your data has been exported month-wise as an XLSX file." });
 
     } catch (error) {
@@ -314,7 +315,7 @@ export default function SettingsPage() {
        <Card>
         <CardHeader>
           <CardTitle>Theme Preferences</CardTitle>
-          <CardDescription>Customize the look and feel of FrugalFlow (Not implemented).</CardDescription>
+          <CardDescription>Customize the look and feel of BudgetWise (Not implemented).</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">Theme customization options will be available here in the future.</p>

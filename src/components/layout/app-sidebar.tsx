@@ -33,7 +33,7 @@ export function AppSidebar() {
         <SidebarHeader className="p-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             <Zap className="w-8 h-8 text-primary" />
-            <h1 className="text-2xl font-semibold font-headline text-sidebar-foreground">FrugalFlow</h1>
+            <h1 className="text-2xl font-semibold font-headline text-sidebar-foreground">BudgetWise</h1>
           </Link>
         </SidebarHeader>
         <SidebarContent>

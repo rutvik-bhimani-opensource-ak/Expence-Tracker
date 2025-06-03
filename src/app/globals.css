@@ -8,77 +8,58 @@ body {
 
 @layer base {
   :root {
-    --background: 208 100% 97%; /* Very Light Blue - #F0F8FF */
-    --foreground: 210 10% 23%; /* Darker muted blue for text */
-    --card: 208 60% 95%; /* Slightly darker light blue for cards */
-    --card-foreground: 210 10% 23%;
-    --popover: 208 100% 97%;
-    --popover-foreground: 210 10% 23%;
-    --primary: 210 40% 60%; /* Muted Blue - #6699CC */
-    --primary-foreground: 210 40% 98%; /* Light text on primary */
-    --secondary: 210 30% 80%; /* Lighter Muted Blue */
-    --secondary-foreground: 210 10% 23%;
-    --muted: 210 30% 90%; /* Very light muted blue for subtle backgrounds */
-    --muted-foreground: 210 10% 45%;
-    --accent: 266 38% 67%; /* Soft Purple - #A98DCC */
-    --accent-foreground: 266 38% 98%; /* Light text on accent */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 210 30% 88%; /* Light blueish border */
-    --input: 210 30% 92%; /* Light blueish input background */
-    --ring: 210 40% 60%; /* Muted Blue for focus rings */
-    --chart-1: 210 40% 60%; /* Muted Blue */
-    --chart-2: 266 38% 67%; /* Soft Purple */
-    --chart-3: 173 58% 39%; /* A contrasting green/teal */
-    --chart-4: 43 74% 66%; /* A contrasting orange */
-    --chart-5: 27 87% 67%; /* A contrasting salmon */
+    /* Dark Theme Palette */
+    --background: 220 15% 12%; /* Dark Blue-Gray */
+    --foreground: 210 40% 95%; /* Light Grayish Blue */
+    
+    --card: 220 15% 18%; /* Slightly Lighter Dark Blue-Gray */
+    --card-foreground: 210 40% 95%;
+    
+    --popover: 220 15% 18%;
+    --popover-foreground: 210 40% 95%;
+    
+    --primary: 210 70% 65%; /* Brighter Muted Blue */
+    --primary-foreground: 210 40% 10%; /* Dark text for primary */
+    
+    --secondary: 220 15% 25%; /* Medium Dark Blue-Gray */
+    --secondary-foreground: 210 40% 95%;
+    
+    --muted: 220 15% 22%; /* Muted Dark Blue-Gray */
+    --muted-foreground: 210 30% 70%; /* Lighter Muted Text */
+    
+    --accent: 266 60% 70%; /* Brighter Soft Purple */
+    --accent-foreground: 266 40% 10%; /* Dark text for accent */
+    
+    --destructive: 0 70% 55%; /* Vivid Red */
+    --destructive-foreground: 0 0% 98%; /* Light text on destructive */
+    
+    --border: 220 15% 30%; /* Darker Border */
+    --input: 220 15% 20%; /* Dark Input Background */
+    --ring: 210 70% 65%; /* Primary color for focus rings */
+    
+    --chart-1: 210 70% 65%; /* Primary Blue */
+    --chart-2: 266 60% 70%; /* Accent Purple */
+    --chart-3: 173 70% 50%; /* Vibrant Teal/Green */
+    --chart-4: 35 85% 60%; /* Vibrant Orange */
+    --chart-5: 340 80% 65%; /* Vibrant Pink/Salmon */
+    
     --radius: 0.5rem;
 
-    /* Sidebar specific colors - can be same as main or distinct */
-    --sidebar-background: 210 35% 55%; /* Darker Muted Blue for sidebar */
-    --sidebar-foreground: 0 0% 98%; /* White text on sidebar */
-    --sidebar-primary: 266 38% 67%; /* Soft Purple for active/hover in sidebar */
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 35% 65%; /* Lighter version of sidebar bg for hover */
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 210 35% 50%;
-    --sidebar-ring: 266 38% 67%;
+    /* Sidebar specific colors - Dark Theme */
+    --sidebar-background: 220 15% 10%; /* Very Dark Blue-Gray for sidebar */
+    --sidebar-foreground: 210 40% 90%; /* Light text on sidebar */
+    --sidebar-primary: 210 70% 65%; /* Primary blue for active/hover in sidebar */
+    --sidebar-primary-foreground: 210 40% 10%; /* Dark text on active */
+    --sidebar-accent: 220 15% 20%; /* Hover color - slightly lighter than sidebar bg */
+    --sidebar-accent-foreground: 210 40% 95%; /* Hover text */
+    --sidebar-border: 220 15% 25%;
+    --sidebar-ring: 210 70% 65%;
   }
 
-  .dark {
-    /* For simplicity, dark theme will invert some basics or use a predefined dark scheme.
-       Keeping it similar to light for now but with darker base.
-       A full dark theme redesign would be more involved.
-    */
-    --background: 210 10% 15%;
-    --foreground: 208 100% 97%;
-    --card: 210 10% 20%;
-    --card-foreground: 208 100% 97%;
-    --popover: 210 10% 15%;
-    --popover-foreground: 208 100% 97%;
-    --primary: 210 40% 60%;
-    --primary-foreground: 210 40% 5%;
-    --secondary: 210 30% 30%;
-    --secondary-foreground: 208 100% 97%;
-    --muted: 210 30% 25%;
-    --muted-foreground: 210 10% 65%;
-    --accent: 266 38% 67%;
-    --accent-foreground: 266 38% 5%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 210 20% 35%;
-    --input: 210 20% 40%;
-    --ring: 210 40% 60%;
-
-    --sidebar-background: 210 10% 10%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 266 38% 67%;
-    --sidebar-primary-foreground: 0 0% 10%;
-    --sidebar-accent: 210 10% 20%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 210 10% 15%;
-    --sidebar-ring: 266 38% 67%;
-  }
+  /* 
+    The .dark class definition is removed as the root variables now define the dark theme as default.
+    If a light/dark toggle was desired, the original :root would be light, and .dark would contain these dark variables.
+  */
 }
 
 @layer base {

@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'; // Import Loader2
 import React from 'react'; // Import React for Suspense
 
 export const metadata: Metadata = {
-  title: 'FrugalFlow',
+  title: 'BudgetWise',
   description: 'Manage your finances with ease.',
 };
 
