@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { Transaction } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
+import { getCategoryIcon } from '@/lib/category-utils';
 
 export default function TransactionsPage() {
   const { transactions, deleteTransaction } = useAppData();
@@ -59,62 +59,70 @@ export default function TransactionsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {transactions.length > 0 ? transactions.map((transaction) => (
-              <TableRow key={transaction.id}>
-                <TableCell>{format(new Date(transaction.date), 'MMM dd, yyyy')}</TableCell>
-                <TableCell className="font-medium">{transaction.description}</TableCell>
-                <TableCell><Badge variant="outline">{transaction.category}</Badge></TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={transaction.type === 'income' ? 'default' : 'destructive'}
+            {transactions.length > 0 ? transactions.map((transaction) => {
+              const CategoryIcon = getCategoryIcon(transaction.category);
+              return (
+                <TableRow key={transaction.id}>
+                  <TableCell>{format(new Date(transaction.date), 'MMM dd, yyyy')}</TableCell>
+                  <TableCell className="font-medium">{transaction.description}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="flex items-center w-fit">
+                      <CategoryIcon className="mr-1.5 h-3.5 w-3.5" />
+                      {transaction.category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant={transaction.type === 'income' ? 'default' : 'destructive'}
+                      className={cn(
+                          "font-semibold",
+                          transaction.type === 'income' ? 'bg-[hsl(var(--chart-3))] text-primary-foreground border-[hsl(var(--chart-3))]' : 'bg-destructive text-destructive-foreground border-destructive'
+                      )}
+                    >
+                      {transaction.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell 
                     className={cn(
-                        "font-semibold",
-                        transaction.type === 'income' ? 'bg-[hsl(var(--chart-3))] text-primary-foreground border-[hsl(var(--chart-3))]' : 'bg-destructive text-destructive-foreground border-destructive'
+                      "text-right font-medium",
+                      transaction.type === 'income' ? 'text-[hsl(var(--chart-3))]' : 'text-destructive'
                     )}
                   >
-                    {transaction.type}
-                  </Badge>
-                </TableCell>
-                <TableCell 
-                  className={cn(
-                    "text-right font-medium",
-                    transaction.type === 'income' ? 'text-[hsl(var(--chart-3))]' : 'text-destructive'
-                  )}
-                >
-                  {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {/* Edit button can be re-enabled when edit functionality is complete */}
-                  {/* <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} className="mr-2 hover:bg-accent">
-                    <Edit className="h-4 w-4" />
-                  </Button> */}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="hover:bg-accent">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete this transaction.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeleteConfirmation(transaction.id)}
-                          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </TableCell>
-              </TableRow>
-            )) : (
+                    {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {/* Edit button can be re-enabled when edit functionality is complete */}
+                    {/* <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} className="mr-2 hover:bg-accent">
+                      <Edit className="h-4 w-4" />
+                    </Button> */}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="hover:bg-accent">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete this transaction.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteConfirmation(transaction.id)}
+                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
+              );
+            }) : (
               <TableRow>
                 <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                   No transactions recorded.

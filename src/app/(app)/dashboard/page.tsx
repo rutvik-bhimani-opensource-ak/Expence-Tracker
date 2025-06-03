@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-
+import { getCategoryIcon } from '@/lib/category-utils';
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
@@ -59,9 +59,11 @@ export default function DashboardPage() {
     .sort((a,b) => b.value - a.value); 
 
   const chartConfig: ChartConfig = spendingChartData.reduce((acc, item, index) => {
+    const Icon = getCategoryIcon(item.name as any); // any for now, should be Category type
     acc[item.name] = {
       label: item.name,
       color: CHART_COLORS[index % CHART_COLORS.length],
+      icon: Icon,
     };
     return acc;
   }, {} as ChartConfig);
@@ -127,7 +129,12 @@ export default function DashboardPage() {
                   <ChartTooltip 
                     content={<ChartTooltipContent 
                         hideLabel 
-                        formatter={(value, name) => `${name}: ₹${Number(value).toFixed(2)}`} 
+                        formatter={(value, name, props) => (
+                          <div className="flex items-center">
+                            {chartConfig[props.name as string]?.icon && React.createElement(chartConfig[props.name as string].icon as any, { className: "mr-1.5 h-4 w-4 text-muted-foreground"})}
+                            <span>{props.name}: ₹{Number(value).toFixed(2)}</span>
+                          </div>
+                        )}
                     />} 
                   />
                   <Pie data={spendingChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
@@ -167,10 +174,17 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentTransactions.map((transaction) => (
+                {recentTransactions.map((transaction) => {
+                  const CategoryIcon = getCategoryIcon(transaction.category);
+                  return (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell><Badge variant="outline">{transaction.category}</Badge></TableCell>
+                    <TableCell>
+                        <Badge variant="outline" className="flex items-center w-fit">
+                           <CategoryIcon className="mr-1.5 h-3.5 w-3.5" />
+                           {transaction.category}
+                        </Badge>
+                    </TableCell>
                     <TableCell 
                       className={cn(
                         "text-right font-medium",
@@ -180,7 +194,8 @@ export default function DashboardPage() {
                       {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
             ) : (
@@ -203,14 +218,17 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {budgets.length > 0 ? budgets.map(budget => {
-            // Budget 'spent' is now pre-calculated in context based on systemMonth/Year
+            const CategoryIcon = getCategoryIcon(budget.category);
             const spent = budget.spent;
             const percentage = budget.limit > 0 ? (spent / budget.limit) * 100 : 0;
             const remaining = budget.limit - spent;
             return (
               <div key={budget.id}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">{budget.category}</span>
+                <div className="flex justify-between mb-1 items-center">
+                  <div className="flex items-center text-sm font-medium">
+                    <CategoryIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {budget.category}
+                  </div>
                   <span className="text-sm text-muted-foreground">
                     ₹{spent.toFixed(2)} / ₹{budget.limit.toFixed(2)}
                   </span>

@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { getCategoryIcon } from '@/lib/category-utils';
 
 const transactionFormSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -74,7 +75,6 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
   useEffect(() => {
     const newAvailableCategories = transactionType === 'income' ? IncomeCategories : ExpenseCategories;
     setAvailableCategories(newAvailableCategories);
-    // If current category is not in the new list, reset it to the first available or keep if editing
     if (defaultTransaction?.id && defaultTransaction.category && newAvailableCategories.includes(defaultTransaction.category as Category)) {
          form.setValue('category', defaultTransaction.category as Category);
     } else if (!newAvailableCategories.includes(form.getValues('category') as Category)) {
@@ -227,9 +227,17 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableCategories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
+                    {availableCategories.map(cat => {
+                      const IconComponent = getCategoryIcon(cat);
+                      return (
+                        <SelectItem key={cat} value={cat}>
+                          <div className="flex items-center">
+                            <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
+                            {cat}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               )}

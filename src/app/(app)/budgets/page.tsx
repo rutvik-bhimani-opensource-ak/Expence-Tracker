@@ -11,6 +11,7 @@ import { PlusCircle, Edit, Trash2, TrendingDown } from 'lucide-react';
 import type { BudgetGoal } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
+import { getCategoryIcon } from '@/lib/category-utils';
 
 export default function BudgetsPage() {
   const { budgets, deleteBudget, getCategorySpentAmount, systemMonth, systemYear } = useAppData();
@@ -68,17 +69,18 @@ export default function BudgetsPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {budgets.map((budget) => {
-            // Budget 'spent' is now pre-calculated in context based on systemMonth/Year
-            // If you need to recalculate here for some reason, use systemMonth, systemYear:
-            // const spentAmount = getCategorySpentAmount(budget.category, systemMonth, systemYear);
-            const spentAmount = budget.spent; // Use the pre-calculated value
+            const CategoryIcon = getCategoryIcon(budget.category);
+            const spentAmount = budget.spent; 
             const progress = budget.limit > 0 ? (spentAmount / budget.limit) * 100 : 0;
             const remaining = budget.limit - spentAmount;
 
             return (
               <Card key={budget.id}>
                 <CardHeader>
-                  <CardTitle>{budget.category}</CardTitle>
+                  <CardTitle className="flex items-center">
+                    <CategoryIcon className="mr-2 h-5 w-5 text-primary" /> 
+                    {budget.category}
+                  </CardTitle>
                   <CardDescription>Monthly Limit: ₹{budget.limit.toFixed(2)}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">

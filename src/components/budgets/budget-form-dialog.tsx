@@ -20,6 +20,7 @@ import type { BudgetGoal, Category } from '@/lib/types';
 import { ExpenseCategories } from '@/lib/types'; 
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { getCategoryIcon } from "@/lib/category-utils";
 
 const budgetFormSchema = z.object({
   category: z.custom<Category>(val => ExpenseCategories.includes(val as Category), "Invalid category"),
@@ -54,7 +55,7 @@ export function BudgetFormDialog({ open, onOpenChange, budgetToEdit }: BudgetFor
       });
     } else {
       form.reset({
-        category: ExpenseCategories[0], // Ensure a default if no budgetToEdit and ExpenseCategories is not empty
+        category: ExpenseCategories[0], 
         limit: undefined,
       });
     }
@@ -104,10 +105,17 @@ export function BudgetFormDialog({ open, onOpenChange, budgetToEdit }: BudgetFor
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableCategories.length > 0 ? availableCategories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    )) : (
-                       // Handle case where budgetToEdit.category might not be in availableCategories (if all are used)
+                    {availableCategories.length > 0 ? availableCategories.map(cat => {
+                      const IconComponent = getCategoryIcon(cat);
+                      return (
+                        <SelectItem key={cat} value={cat}>
+                          <div className="flex items-center">
+                            <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
+                            {cat}
+                          </div>
+                        </SelectItem>
+                      );
+                    }) : (
                       <SelectItem value={budgetToEdit?.category || (ExpenseCategories.length > 0 ? ExpenseCategories[0] : "")} disabled={!budgetToEdit}>
                         {budgetToEdit ? budgetToEdit.category : "No categories available"}
                       </SelectItem>
