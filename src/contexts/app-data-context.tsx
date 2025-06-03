@@ -134,26 +134,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const resetAllData = () => {
-    // Create new instances of initial data to avoid mutation issues with shared objects
-    const newInitialTransactions = initialDemoTransactions.map(t => ({...t, date: new Date(new Date().getFullYear(), new Date().getMonth(), parseInt(t.id) % 28 + 1).toISOString()})); // Vary dates slightly for demo
-    const newInitialBudgets = initialDemoBudgets.map(b => ({...b}));
-    const newInitialAccounts = initialDemoAccounts.map(a => ({...a}));
-
-    setTransactions(newInitialTransactions);
-    setBudgets(newInitialBudgets);
-    setAccounts(newInitialAccounts);
-    // Recalculate budget spent amounts based on the new (demo) transactions and current system date
-    setBudgets(prevBudgets =>
-      prevBudgets.map(budget => ({
-        ...budget,
-        spent: newInitialTransactions
-          .filter(t => {
-            const tDate = new Date(t.date);
-            return t.type === 'expense' && t.category === budget.category && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
-          })
-          .reduce((sum, t) => sum + t.amount, 0),
-      }))
+    setTransactions([]);
+    setBudgets([]); // Spent amounts will be 0 due to no transactions
+    setAccounts(prevAccounts =>
+      prevAccounts.map((acc, index) =>
+        index === 0 ? { ...acc, balance: 0 } : acc // Reset balance of the first account to 0
+      )
     );
+    // System date (month/year) remains as is.
   };
   
   const getAllData = () => {

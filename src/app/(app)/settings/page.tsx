@@ -60,6 +60,13 @@ export default function SettingsPage() {
         accountName: primaryAccount.name,
         initialBalance: primaryAccount.balance
       });
+    } else {
+        // If no primary account (e.g., after a reset that cleared accounts or initial load with no accounts)
+        // set default form values for creating a new one.
+        accountForm.reset({
+            accountName: "Main Account",
+            initialBalance: 0,
+        });
     }
   }, [primaryAccount, accountForm]);
 
@@ -94,7 +101,13 @@ export default function SettingsPage() {
 
   const handleResetData = () => {
     resetAllData();
-    toast({ title: "Data Reset", description: "All application data has been reset to demo values.", variant: "destructive" });
+    // Update the account form display if the primary account was reset (balance to 0 or account removed)
+    const potentiallyResetAccount = accounts.length > 0 ? accounts[0] : null;
+     accountForm.reset({
+        accountName: potentiallyResetAccount?.name || "Main Account",
+        initialBalance: potentiallyResetAccount?.balance || 0
+      });
+    toast({ title: "Data Reset", description: "All transactions and budgets have been deleted. Your account balance has been reset to ₹0.00.", variant: "destructive" });
   };
 
   const months = Array.from({ length: 12 }, (_, i) => ({
@@ -178,7 +191,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Data Management</CardTitle>
-          <CardDescription>Export your current data or reset to the application's initial state.</CardDescription>
+          <CardDescription>Export your current data or reset all application data to a clean slate.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4">
           <Button onClick={handleExportData} variant="outline">
@@ -194,7 +207,7 @@ export default function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all your current application data (transactions, budgets, accounts) and reset the application to its initial demo state.
+                  This action cannot be undone. This will permanently delete all your transactions and budgets. Your primary account balance will be reset to ₹0.00.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
