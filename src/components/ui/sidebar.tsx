@@ -22,8 +22,8 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH = "14rem" // Changed from 16rem
+const SIDEBAR_WIDTH_MOBILE = "14rem" // Changed from 18rem
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
@@ -327,26 +327,34 @@ const SidebarInset = React.forwardRef<
 
         // Margins for NON-INSET variants (sidebar, floating)
         // When sidebar is EXPANDED
-        "md:peer-data-[state=expanded]:peer-data-[variant=sidebar]:ml-[var(--sidebar-width)]",
-        "md:peer-data-[state=expanded]:peer-data-[variant=floating]:ml-[var(--sidebar-width)]",
+        "md:peer-data-[state=expanded]:peer-data-[side=left]:peer-data-[variant=sidebar]:ml-[var(--sidebar-width)]",
+        "md:peer-data-[state=expanded]:peer-data-[side=left]:peer-data-[variant=floating]:ml-[var(--sidebar-width)]",
+        "md:peer-data-[state=expanded]:peer-data-[side=right]:peer-data-[variant=sidebar]:mr-[var(--sidebar-width)]",
+        "md:peer-data-[state=expanded]:peer-data-[side=right]:peer-data-[variant=floating]:mr-[var(--sidebar-width)]",
 
         // When sidebar is COLLAPSED
         //  Collapsible type: ICON
-        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=sidebar]:ml-[var(--sidebar-width-icon)]",
-        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=floating]:ml-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]",
-        //  Collapsible type: OFFCANVAS (sidebar is off-screen, so ml-0)
-        "md:peer-data-[state=collapsed]:peer-data-[collapsible=offcanvas]:ml-0",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[side=left]:peer-data-[variant=sidebar]:ml-[var(--sidebar-width-icon)]",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[side=left]:peer-data-[variant=floating]:ml-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[side=right]:peer-data-[variant=sidebar]:mr-[var(--sidebar-width-icon)]",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[side=right]:peer-data-[variant=floating]:mr-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]",
+        
+        //  Collapsible type: OFFCANVAS (sidebar is off-screen, so ml-0 or mr-0)
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=offcanvas]:peer-data-[side=left]:ml-0",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=offcanvas]:peer-data-[side=right]:mr-0",
 
 
-        // Original INSET variant specific styles
+        // INSET variant specific styles
         "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))]",
-        "md:peer-data-[variant=inset]:m-2", // This applies the overall margin for the inset area
-        // For inset, when collapsed, its internal margin might change (e.g. if it shows an icon bar)
-        "md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2", // Original style for collapsed inset
+        "md:peer-data-[variant=inset]:m-2", 
+        // For inset, when collapsed (icon only or offcanvas), its internal margin might change
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=inset]:peer-data-[side=left]:ml-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=inset]:peer-data-[side=right]:mr-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=offcanvas]:peer-data-[variant=inset]:ml-2 peer-data-[variant=inset]:mr-2", // For offcanvas, use base margin
         // For inset, when expanded, its internal margin is 0 because m-2 handles the container
-        "md:peer-data-[state=expanded]:peer-data-[variant=inset]:ml-0", // Original style for expanded inset
+        "md:peer-data-[state=expanded]:peer-data-[variant=inset]:ml-0 peer-data-[variant=inset]:mr-0",
 
-        "md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow", // Rounding and shadow for inset
+        "md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow", 
         className
       )}
       {...props}
@@ -784,3 +792,4 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
