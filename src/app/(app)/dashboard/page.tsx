@@ -13,48 +13,42 @@ import type { ChartConfig } from "@/components/ui/chart";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-
-const ICON_MAP = {
-  "Food": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Rent/Mortgage": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Transportation": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Utilities": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Healthcare": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Entertainment": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Shopping": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Salary": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
-  "Investments": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
-  "Gifts": <DollarSign className="h-6 w-6 text-[hsl(var(--chart-4))]" />, 
-  "Other": <BarChart className="h-6 w-6 text-muted-foreground" />,
-  "Freelance": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
-  "Dividends": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
-  "Side Hustle": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
-  "Education": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Personal Care": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Subscriptions": <TrendingDown className="h-6 w-6 text-destructive" />,
-  "Travel": <TrendingDown className="h-6 w-6 text-destructive" />,
-} as const;
+import { format } from 'date-fns';
 
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 export default function DashboardPage() {
-  const { transactions, accounts, budgets, getCategorySpentAmount } = useAppData();
+  const { transactions, accounts, budgets, getCategorySpentAmount, systemMonth, systemYear } = useAppData();
+
+  const currentMonthName = format(new Date(systemYear, systemMonth), 'MMMM yyyy');
 
   const totalIncome = transactions
-    .filter(t => t.type === 'income')
+    .filter(t => {
+      const tDate = new Date(t.date);
+      return t.type === 'income' && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
+    })
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalExpenses = transactions
-    .filter(t => t.type === 'expense')
+    .filter(t => {
+      const tDate = new Date(t.date);
+      return t.type === 'expense' && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
+    })
     .reduce((sum, t) => sum + t.amount, 0);
   
   const currentBalance = accounts.length > 0 ? accounts[0].balance : 0; 
 
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = [...transactions] // Create a copy before sorting
+    .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
+
 
   const spendingByCategory = transactions
-    .filter(t => t.type === 'expense')
+    .filter(t => {
+      const tDate = new Date(t.date);
+      return t.type === 'expense' && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
+    })
     .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
       return acc;
@@ -72,18 +66,19 @@ export default function DashboardPage() {
     return acc;
   }, {} as ChartConfig);
   
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-
   return (
     <div className="space-y-6">
       <PageHeader title="Dashboard">
-        <Button asChild>
-          <Link href="/transactions?action=add">
-            <ListPlus className="mr-2 h-4 w-4" /> Add Transaction
-          </Link>
-        </Button>
+        <div className="flex flex-col items-end sm:flex-row sm:items-center gap-2">
+            <span className="text-sm text-muted-foreground hidden sm:block">Displaying data for: {currentMonthName}</span>
+            <Button asChild>
+            <Link href="/transactions?action=add">
+                <ListPlus className="mr-2 h-4 w-4" /> Add Transaction
+            </Link>
+            </Button>
+        </div>
       </PageHeader>
+       <p className="text-sm text-muted-foreground sm:hidden -mt-4 mb-4">Displaying data for: {currentMonthName}</p>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -98,22 +93,22 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Income (This Month)</CardTitle>
+            <CardTitle className="text-sm font-medium">Income ({currentMonthName})</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-[hsl(var(--chart-3))]">+₹{totalIncome.toFixed(2)}</div>
-             <p className="text-xs text-muted-foreground">Based on all recorded income</p>
+             <p className="text-xs text-muted-foreground">Income for {currentMonthName}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Expenses (This Month)</CardTitle>
+            <CardTitle className="text-sm font-medium">Expenses ({currentMonthName})</CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">-₹{totalExpenses.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Based on all recorded expenses</p>
+            <p className="text-xs text-muted-foreground">Expenses for {currentMonthName}</p>
           </CardContent>
         </Card>
       </div>
@@ -122,14 +117,19 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Spending Overview</CardTitle>
-            <CardDescription>Your expenses by category for the current month.</CardDescription>
+            <CardDescription>Your expenses by category for {currentMonthName}.</CardDescription>
           </CardHeader>
           <CardContent className="h-[350px]">
             {spendingChartData.length > 0 ? (
             <ChartContainer config={chartConfig} className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <RechartsPieChart>
-                  <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                  <ChartTooltip 
+                    content={<ChartTooltipContent 
+                        hideLabel 
+                        formatter={(value, name) => `${name}: ₹${Number(value).toFixed(2)}`} 
+                    />} 
+                  />
                   <Pie data={spendingChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
                      {spendingChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -140,7 +140,12 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">No spending data available.</div>
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                    <BarChart className="mx-auto h-12 w-12 mb-2"/>
+                    No spending data available for {currentMonthName}.
+                </div>
+            </div>
             )}
           </CardContent>
         </Card>
@@ -148,7 +153,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Your last 5 transactions.</CardDescription>
+            <CardDescription>Your last 5 transactions (all time).</CardDescription>
           </CardHeader>
           <CardContent>
           <ScrollArea className="h-[350px]">
@@ -179,7 +184,12 @@ export default function DashboardPage() {
               </TableBody>
             </Table>
             ) : (
-               <div className="flex items-center justify-center h-full text-muted-foreground">No recent transactions.</div>
+               <div className="flex items-center justify-center h-full">
+                 <div className="text-center text-muted-foreground">
+                    <ListPlus className="mx-auto h-12 w-12 mb-2"/>
+                    No recent transactions.
+                </div>
+               </div>
             )}
              </ScrollArea>
           </CardContent>
@@ -189,11 +199,12 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Budget Progress</CardTitle>
-          <CardDescription>Track your spending against your budget goals for this month.</CardDescription>
+          <CardDescription>Track your spending against budget goals for {currentMonthName}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {budgets.length > 0 ? budgets.map(budget => {
-            const spent = getCategorySpentAmount(budget.category, currentMonth, currentYear);
+            // Budget 'spent' is now pre-calculated in context based on systemMonth/Year
+            const spent = budget.spent;
             const percentage = budget.limit > 0 ? (spent / budget.limit) * 100 : 0;
             const remaining = budget.limit - spent;
             return (
@@ -216,7 +227,7 @@ export default function DashboardPage() {
               </div>
             );
           }) : (
-            <p className="text-sm text-muted-foreground">No budgets set yet. <Link href="/budgets" className="text-primary hover:underline">Set up your budgets</Link>.</p>
+            <p className="text-sm text-muted-foreground">No budgets set for {currentMonthName}. <Link href="/budgets" className="text-primary hover:underline">Set up your budgets</Link>.</p>
           )}
         </CardContent>
       </Card>

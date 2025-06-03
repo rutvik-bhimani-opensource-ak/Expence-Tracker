@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,21 +10,14 @@ import { PageHeader } from '@/components/shared/page-header';
 import { PlusCircle, Edit, Trash2, TrendingDown } from 'lucide-react';
 import type { BudgetGoal } from '@/lib/types';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { format } from 'date-fns';
 
 export default function BudgetsPage() {
-  const { budgets, deleteBudget, getCategorySpentAmount } = useAppData();
+  const { budgets, deleteBudget, getCategorySpentAmount, systemMonth, systemYear } = useAppData();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<BudgetGoal | undefined>(undefined);
   
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-
-  useEffect(() => {
-    const now = new Date();
-    setCurrentMonth(now.getMonth());
-    setCurrentYear(now.getFullYear());
-  }, []);
-
+  const pageSubtitle = `Showing budgets for ${format(new Date(systemYear, systemMonth), 'MMMM yyyy')}`;
 
   const handleAddNew = () => {
     setEditingBudget(undefined);
@@ -43,10 +36,15 @@ export default function BudgetsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Budgets">
-        <Button onClick={handleAddNew}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New Budget
-        </Button>
+        <div className="flex flex-col items-end sm:flex-row sm:items-center gap-2">
+            <span className="text-sm text-muted-foreground hidden sm:block">{pageSubtitle}</span>
+            <Button onClick={handleAddNew}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Add New Budget
+            </Button>
+        </div>
       </PageHeader>
+      <p className="text-sm text-muted-foreground sm:hidden -mt-4 mb-4">{pageSubtitle}</p>
+
 
       <BudgetFormDialog 
         open={isFormOpen} 
@@ -58,8 +56,8 @@ export default function BudgetsPage() {
         <Card className="text-center">
           <CardHeader>
              <TrendingDown className="mx-auto h-12 w-12 text-muted-foreground" />
-            <CardTitle>No Budgets Yet</CardTitle>
-            <CardDescription>Create budgets to track your spending against your goals.</CardDescription>
+            <CardTitle>No Budgets Yet for {format(new Date(systemYear, systemMonth), 'MMMM yyyy')}</CardTitle>
+            <CardDescription>Create budgets to track your spending against your goals for this month.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={handleAddNew}>
@@ -70,7 +68,10 @@ export default function BudgetsPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {budgets.map((budget) => {
-            const spentAmount = getCategorySpentAmount(budget.category, currentMonth, currentYear);
+            // Budget 'spent' is now pre-calculated in context based on systemMonth/Year
+            // If you need to recalculate here for some reason, use systemMonth, systemYear:
+            // const spentAmount = getCategorySpentAmount(budget.category, systemMonth, systemYear);
+            const spentAmount = budget.spent; // Use the pre-calculated value
             const progress = budget.limit > 0 ? (spentAmount / budget.limit) * 100 : 0;
             const remaining = budget.limit - spentAmount;
 
@@ -78,7 +79,7 @@ export default function BudgetsPage() {
               <Card key={budget.id}>
                 <CardHeader>
                   <CardTitle>{budget.category}</CardTitle>
-                  <CardDescription>Limit: ₹{budget.limit.toFixed(2)}</CardDescription>
+                  <CardDescription>Monthly Limit: ₹{budget.limit.toFixed(2)}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Progress value={Math.min(progress, 100)} className={progress > 100 ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'} />

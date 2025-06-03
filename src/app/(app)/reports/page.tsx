@@ -7,49 +7,62 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
 import { useMemo } from 'react';
-import { format } from 'date-fns';
+import { format, getYear, getMonth, startOfMonth, endOfMonth } from 'date-fns';
+import { TrendingUp, TrendingDown, BarChart as BarChartIcon } from 'lucide-react'; // BarChartIcon for empty state
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 export default function ReportsPage() {
-  const { transactions } = useAppData();
+  const { transactions, systemMonth, systemYear } = useAppData();
 
-  const monthlyIncomeExpenseData = useMemo(() => {
-    const dataByMonth: Record<string, { month: string; income: number; expenses: number }> = {};
+  const currentSystemDateFormatted = format(new Date(systemYear, systemMonth), 'MMMM yyyy');
 
-    transactions.forEach(t => {
+  // Monthly Income/Expense for the System Year
+  const monthlyIncomeExpenseDataSystemYear = useMemo(() => {
+    const dataByMonth: Record<string, { month: string; monthNumeric: number; income: number; expenses: number }> = {};
+    const targetYearTransactions = transactions.filter(t => getYear(new Date(t.date)) === systemYear);
+
+    for (let i = 0; i < 12; i++) { // Ensure all months of the system year are present
+      const monthName = format(new Date(systemYear, i), 'MMM');
+      dataByMonth[monthName] = { month: monthName, monthNumeric: i, income: 0, expenses: 0 };
+    }
+
+    targetYearTransactions.forEach(t => {
       const date = new Date(t.date);
-      const monthYear = format(date, 'MMM yyyy');
-      if (!dataByMonth[monthYear]) {
-        dataByMonth[monthYear] = { month: format(date, 'MMM'), income: 0, expenses: 0 };
-      }
-      if (t.type === 'income') {
-        dataByMonth[monthYear].income += t.amount;
-      } else {
-        dataByMonth[monthYear].expenses += t.amount;
+      const monthName = format(date, 'MMM');
+      if (dataByMonth[monthName]) {
+        if (t.type === 'income') {
+          dataByMonth[monthName].income += t.amount;
+        } else {
+          dataByMonth[monthName].expenses += t.amount;
+        }
       }
     });
-    return Object.values(dataByMonth).sort((a,b) => new Date(`01 ${a.month} ${new Date().getFullYear()}`) > new Date(`01 ${b.month} ${new Date().getFullYear()}`) ? 1 : -1); 
-  }, [transactions]);
+    return Object.values(dataByMonth).sort((a,b) => a.monthNumeric - b.monthNumeric);
+  }, [transactions, systemYear]);
   
   const incomeExpenseChartConfig: ChartConfig = {
     income: { label: "Income", color: "hsl(var(--chart-3))" }, 
     expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
   };
 
-  const categorySpendingData = useMemo(() => {
+  // Category Spending for the System Month
+  const categorySpendingDataSystemMonth = useMemo(() => {
     const spending: Record<string, number> = {};
     transactions
-      .filter(t => t.type === 'expense')
+      .filter(t => {
+        const tDate = new Date(t.date);
+        return t.type === 'expense' && getMonth(tDate) === systemMonth && getYear(tDate) === systemYear;
+      })
       .forEach(t => {
         spending[t.category] = (spending[t.category] || 0) + t.amount;
       });
     return Object.entries(spending)
       .map(([name, value]) => ({ name, value }))
       .sort((a,b) => b.value - a.value);
-  }, [transactions]);
+  }, [transactions, systemMonth, systemYear]);
 
-  const categoryChartConfig: ChartConfig = categorySpendingData.reduce((acc, item, index) => {
+  const categoryChartConfig: ChartConfig = categorySpendingDataSystemMonth.reduce((acc, item, index) => {
     acc[item.name] = {
       label: item.name,
       color: CHART_COLORS[index % CHART_COLORS.length],
@@ -60,19 +73,21 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reports & Analytics" />
+      <PageHeader title="Reports & Analytics">
+         <span className="text-sm text-muted-foreground">Displaying reports based on: {currentSystemDateFormatted}</span>
+      </PageHeader>
 
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Income vs. Expense</CardTitle>
-            <CardDescription>Comparison of your income and expenses over recent months.</CardDescription>
+            <CardTitle>Monthly Income vs. Expense ({systemYear})</CardTitle>
+            <CardDescription>Comparison of your income and expenses for each month of {systemYear}.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
-          {monthlyIncomeExpenseData.length > 0 ? (
+          {monthlyIncomeExpenseDataSystemYear.some(d => d.income > 0 || d.expenses > 0) ? (
             <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full">
               <ResponsiveContainer>
-                <RechartsBarChart data={monthlyIncomeExpenseData}>
+                <RechartsBarChart data={monthlyIncomeExpenseDataSystemYear}>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="month" tickLine={false} tickMargin={10} axisLine={false} />
                   <YAxis tickFormatter={(value) => `₹${value}`} />
@@ -88,18 +103,23 @@ export default function ReportsPage() {
               </ResponsiveContainer>
             </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">No data for income/expense chart.</div>
+              <div className="flex items-center justify-center h-full">
+                 <div className="text-center text-muted-foreground">
+                    <TrendingUp className="mx-auto h-12 w-12 mb-2"/>
+                    No income/expense data for {systemYear}.
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Spending by Category (All Time)</CardTitle>
-            <CardDescription>Breakdown of your total expenses by category.</CardDescription>
+            <CardTitle>Spending by Category ({currentSystemDateFormatted})</CardTitle>
+            <CardDescription>Breakdown of your total expenses by category for {currentSystemDateFormatted}.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
-           {categorySpendingData.length > 0 ? (
+           {categorySpendingDataSystemMonth.length > 0 ? (
             <ChartContainer config={categoryChartConfig} className="w-full h-full">
                <ResponsiveContainer>
                 <RechartsPieChart>
@@ -109,8 +129,8 @@ export default function ReportsPage() {
                                 formatter={(value, name) => `${name}: ₹${Number(value).toFixed(2)}`} 
                             />}
                    />
-                  <Pie data={categorySpendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
-                    {categorySpendingData.map((entry, index) => (
+                  <Pie data={categorySpendingDataSystemMonth} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
+                    {categorySpendingDataSystemMonth.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
                   </Pie>
@@ -119,7 +139,12 @@ export default function ReportsPage() {
               </ResponsiveContainer>
             </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">No spending data available.</div>
+               <div className="flex items-center justify-center h-full">
+                 <div className="text-center text-muted-foreground">
+                    <BarChartIcon className="mx-auto h-12 w-12 mb-2"/>
+                    No spending data available for {currentSystemDateFormatted}.
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
