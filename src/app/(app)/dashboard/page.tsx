@@ -76,7 +76,7 @@ export default function DashboardPage() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="w-full space-y-6">
+    <div className="space-y-6">
       <PageHeader title="Dashboard">
         <Button asChild>
           <Link href="/transactions?action=add">

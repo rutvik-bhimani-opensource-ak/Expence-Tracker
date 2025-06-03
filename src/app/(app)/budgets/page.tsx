@@ -41,7 +41,7 @@ export default function BudgetsPage() {
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="space-y-6">
       <PageHeader title="Budgets">
         <Button onClick={handleAddNew}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Budget

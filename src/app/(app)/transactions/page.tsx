@@ -32,7 +32,7 @@ export default function TransactionsPage() {
 
 
   return (
-    <div className="w-full space-y-6">
+    <div className="space-y-6">
       <PageHeader title="Transactions">
         <Button onClick={() => { /*setEditingTransaction(undefined);*/ setIsAddDialogOpen(true); }}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Transaction

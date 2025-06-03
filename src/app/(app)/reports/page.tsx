@@ -59,7 +59,7 @@ export default function ReportsPage() {
 
 
   return (
-    <div className="w-full space-y-6">
+    <div className="space-y-6">
       <PageHeader title="Reports & Analytics" />
 
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">

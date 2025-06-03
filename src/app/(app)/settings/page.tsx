@@ -54,7 +54,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="w-full space-y-6">
+    <div className="space-y-6">
       <PageHeader title="Settings" />
 
       <Card>
