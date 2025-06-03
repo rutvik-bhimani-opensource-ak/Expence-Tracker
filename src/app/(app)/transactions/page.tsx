@@ -10,6 +10,9 @@ import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+import type { Transaction } from '@/lib/types';
+
 
 export default function TransactionsPage() {
   const { transactions, deleteTransaction } = useAppData();
@@ -43,7 +46,7 @@ export default function TransactionsPage() {
         // defaultTransaction={editingTransaction}
       />
       
-      <ScrollArea className="h-[calc(100vh-200px)]"> {/* Adjust height as needed */}
+      <ScrollArea className="h-[calc(100vh-200px)]">
         <Table>
           <TableCaption>A list of your recent transactions.</TableCaption>
           <TableHeader>
@@ -63,13 +66,23 @@ export default function TransactionsPage() {
                 <TableCell className="font-medium">{transaction.description}</TableCell>
                 <TableCell><Badge variant="outline">{transaction.category}</Badge></TableCell>
                 <TableCell>
-                  <Badge variant={transaction.type === 'income' ? 'default' : 'secondary'} 
-                         className={transaction.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                  <Badge 
+                    variant="outline"
+                    className={cn(
+                      "font-semibold",
+                      transaction.type === 'income' ? 'text-[hsl(var(--chart-3))] border-[hsl(var(--chart-3))]' : 'text-destructive border-destructive'
+                    )}
+                  >
                     {transaction.type}
                   </Badge>
                 </TableCell>
-                <TableCell className={`text-right font-medium ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                  {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                <TableCell 
+                  className={cn(
+                    "text-right font-medium",
+                    transaction.type === 'income' ? 'text-[hsl(var(--chart-3))]' : 'text-destructive'
+                  )}
+                >
+                  {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                 </TableCell>
                 <TableCell className="text-right">
                   {/* <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} className="mr-2">

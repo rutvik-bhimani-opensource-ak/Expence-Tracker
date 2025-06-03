@@ -1,6 +1,6 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,8 +15,16 @@ export default function BudgetsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<BudgetGoal | undefined>(undefined);
   
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    // Update month and year if they change, to re-fetch spent amounts correctly
+    const now = new Date();
+    setCurrentMonth(now.getMonth());
+    setCurrentYear(now.getFullYear());
+  }, []);
+
 
   const handleAddNew = () => {
     setEditingBudget(undefined);
@@ -29,6 +37,7 @@ export default function BudgetsPage() {
   };
   
   const handleDelete = (budgetId: string) => {
+    // Consider using AlertDialog for confirmation
     if (confirm('Are you sure you want to delete this budget?')) {
         deleteBudget(budgetId);
     }
@@ -72,14 +81,14 @@ export default function BudgetsPage() {
               <Card key={budget.id}>
                 <CardHeader>
                   <CardTitle>{budget.category}</CardTitle>
-                  <CardDescription>Limit: ${budget.limit.toFixed(2)}</CardDescription>
+                  <CardDescription>Limit: ₹{budget.limit.toFixed(2)}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <Progress value={Math.min(progress, 100)} className={progress > 100 ? '[&>div]:bg-destructive' : ''} />
+                  <Progress value={Math.min(progress, 100)} className={progress > 100 ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'} />
                   <div className="flex justify-between text-sm">
-                    <span>Spent: ${spentAmount.toFixed(2)}</span>
+                    <span>Spent: ₹{spentAmount.toFixed(2)}</span>
                     <span className={remaining < 0 ? 'text-destructive font-medium' : ''}>
-                      {remaining >= 0 ? `Remaining: $${remaining.toFixed(2)}` : `Overspent: $${(-remaining).toFixed(2)}`}
+                      {remaining >= 0 ? `Remaining: ₹${remaining.toFixed(2)}` : `Overspent: ₹${(-remaining).toFixed(2)}`}
                     </span>
                   </div>
                 </CardContent>

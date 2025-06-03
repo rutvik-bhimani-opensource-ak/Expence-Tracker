@@ -9,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +19,7 @@ import * as z from "zod";
 import { useAppData } from '@/contexts/app-data-context';
 import type { Category, Transaction } from '@/lib/types';
 import { AllCategories, ExpenseCategories, IncomeCategories } from '@/lib/types';
-import { categorizeTransaction } from '@/ai/flows/categorize-transaction'; // Ensure this path is correct
+import { categorizeTransaction } from '@/ai/flows/categorize-transaction'; 
 import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -42,14 +41,17 @@ type TransactionFormValues = z.infer<typeof transactionFormSchema>;
 interface AddTransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultTransaction?: Partial<TransactionFormValues & { id?: string }>; // For editing
+  defaultTransaction?: Partial<TransactionFormValues & { id?: string }>; 
 }
 
 export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }: AddTransactionDialogProps) {
   const { addTransaction } = useAppData();
   const { toast } = useToast();
   const [isCategorizing, setIsCategorizing] = useState(false);
-  const [availableCategories, setAvailableCategories] = useState<Category[]>(ExpenseCategories);
+  
+  const defaultType = defaultTransaction?.type || 'expense';
+  const initialCategories = defaultType === 'income' ? IncomeCategories : ExpenseCategories;
+  const defaultCategory = defaultTransaction?.category || initialCategories[0];
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
@@ -57,22 +59,28 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
       description: defaultTransaction?.description || '',
       amount: defaultTransaction?.amount || undefined,
       date: defaultTransaction?.date ? new Date(defaultTransaction.date) : new Date(),
-      type: defaultTransaction?.type || 'expense',
-      category: defaultTransaction?.category || ExpenseCategories[0],
+      type: defaultType,
+      category: defaultCategory,
       vendor: defaultTransaction?.vendor || '',
     },
   });
-
+  
   const transactionType = form.watch('type');
   const transactionDescription = form.watch('description');
   const transactionVendor = form.watch('vendor');
 
+  const [availableCategories, setAvailableCategories] = useState<Category[]>(initialCategories);
+
   useEffect(() => {
-    setAvailableCategories(transactionType === 'income' ? IncomeCategories : ExpenseCategories);
-    if (!availableCategories.includes(form.getValues('category') as Category)) {
-       form.setValue('category', availableCategories[0]);
+    const newAvailableCategories = transactionType === 'income' ? IncomeCategories : ExpenseCategories;
+    setAvailableCategories(newAvailableCategories);
+    // If current category is not in the new list, reset it to the first available or keep if editing
+    if (defaultTransaction?.id && defaultTransaction.category && newAvailableCategories.includes(defaultTransaction.category as Category)) {
+         form.setValue('category', defaultTransaction.category as Category);
+    } else if (!newAvailableCategories.includes(form.getValues('category') as Category)) {
+       form.setValue('category', newAvailableCategories[0]);
     }
-  }, [transactionType, form, availableCategories]);
+  }, [transactionType, form, defaultTransaction]);
 
 
   const handleAICategorize = async () => {
@@ -87,7 +95,6 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
         vendorName: transactionVendor,
       });
       if (result.category && AllCategories.includes(result.category as Category)) {
-        // Check if AI category is valid for current transaction type
         const currentValidCategories = form.getValues('type') === 'income' ? IncomeCategories : ExpenseCategories;
         if (currentValidCategories.includes(result.category as Category)) {
             form.setValue('category', result.category as Category);
@@ -111,13 +118,32 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
       ...data,
       date: data.date.toISOString(),
     });
-    toast({ title: "Transaction Added", description: `${data.description} for $${data.amount.toFixed(2)} was added.` });
-    form.reset();
+    toast({ title: "Transaction Added", description: `${data.description} for ₹${data.amount.toFixed(2)} was added.` });
+    form.reset({ 
+        description: '', 
+        amount: undefined, 
+        date: new Date(), 
+        type: 'expense', 
+        category: ExpenseCategories[0], 
+        vendor: '' 
+    });
     onOpenChange(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+        onOpenChange(isOpen);
+        if (!isOpen) {
+            form.reset({ 
+                description: '', 
+                amount: undefined, 
+                date: new Date(), 
+                type: 'expense', 
+                category: ExpenseCategories[0], 
+                vendor: '' 
+            });
+        }
+    }}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{defaultTransaction?.id ? 'Edit' : 'Add New'} Transaction</DialogTitle>
@@ -129,13 +155,13 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="description" className="text-right">Description</Label>
             <Input id="description" {...form.register("description")} className="col-span-3" />
-            {form.formState.errors.description && <p className="col-span-4 text-red-500 text-sm text-right">{form.formState.errors.description.message}</p>}
+            {form.formState.errors.description && <p className="col-span-4 text-destructive text-sm text-right">{form.formState.errors.description.message}</p>}
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="amount" className="text-right">Amount</Label>
+            <Label htmlFor="amount" className="text-right">Amount (₹)</Label>
             <Input id="amount" type="number" step="0.01" {...form.register("amount")} className="col-span-3" />
-            {form.formState.errors.amount && <p className="col-span-4 text-red-500 text-sm text-right">{form.formState.errors.amount.message}</p>}
+            {form.formState.errors.amount && <p className="col-span-4 text-destructive text-sm text-right">{form.formState.errors.amount.message}</p>}
           </div>
           
           <div className="grid grid-cols-4 items-center gap-4">
@@ -168,7 +194,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
                 </Popover>
               )}
             />
-            {form.formState.errors.date && <p className="col-span-4 text-red-500 text-sm text-right">{form.formState.errors.date.message}</p>}
+            {form.formState.errors.date && <p className="col-span-4 text-destructive text-sm text-right">{form.formState.errors.date.message}</p>}
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
@@ -177,7 +203,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
               control={form.control}
               name="type"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
                   <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
@@ -196,7 +222,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
               control={form.control}
               name="category"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select onValueChange={field.onChange} value={field.value} >
                   <SelectTrigger className="col-span-2">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
@@ -211,7 +237,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
              <Button type="button" variant="outline" onClick={handleAICategorize} disabled={isCategorizing} className="col-span-1 text-xs p-2 h-auto">
               {isCategorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : "AI"}
             </Button>
-            {form.formState.errors.category && <p className="col-span-4 text-red-500 text-sm text-right">{form.formState.errors.category.message}</p>}
+            {form.formState.errors.category && <p className="col-span-4 text-destructive text-sm text-right">{form.formState.errors.category.message}</p>}
           </div>
           
           <div className="grid grid-cols-4 items-center gap-4">
@@ -220,7 +246,10 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => {
+                 onOpenChange(false); 
+                 form.reset({ description: '', amount: undefined, date: new Date(), type: 'expense', category: ExpenseCategories[0], vendor: '' });
+            }}>Cancel</Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {defaultTransaction?.id ? 'Save Changes' : 'Add Transaction'}

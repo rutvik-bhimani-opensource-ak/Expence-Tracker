@@ -12,26 +12,27 @@ import { Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as Rech
 import type { ChartConfig } from "@/components/ui/chart";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const ICON_MAP = {
-  "Food": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Rent/Mortgage": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Transportation": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Utilities": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Healthcare": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Entertainment": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Shopping": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Salary": <TrendingUp className="h-6 w-6 text-green-500" />,
-  "Investments": <TrendingUp className="h-6 w-6 text-green-500" />,
-  "Gifts": <DollarSign className="h-6 w-6 text-yellow-500" />,
-  "Other": <BarChart className="h-6 w-6 text-gray-500" />,
-  "Freelance": <TrendingUp className="h-6 w-6 text-green-500" />,
-  "Dividends": <TrendingUp className="h-6 w-6 text-green-500" />,
-  "Side Hustle": <TrendingUp className="h-6 w-6 text-green-500" />,
-  "Education": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Personal Care": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Subscriptions": <TrendingDown className="h-6 w-6 text-red-500" />,
-  "Travel": <TrendingDown className="h-6 w-6 text-red-500" />,
+  "Food": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Rent/Mortgage": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Transportation": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Utilities": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Healthcare": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Entertainment": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Shopping": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Salary": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
+  "Investments": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
+  "Gifts": <DollarSign className="h-6 w-6 text-[hsl(var(--chart-4))]" />, // Using chart-4 (orange) for gifts
+  "Other": <BarChart className="h-6 w-6 text-muted-foreground" />,
+  "Freelance": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
+  "Dividends": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
+  "Side Hustle": <TrendingUp className="h-6 w-6 text-[hsl(var(--chart-3))]" />,
+  "Education": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Personal Care": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Subscriptions": <TrendingDown className="h-6 w-6 text-destructive" />,
+  "Travel": <TrendingDown className="h-6 w-6 text-destructive" />,
 } as const;
 
 
@@ -48,7 +49,7 @@ export default function DashboardPage() {
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  const currentBalance = accounts.length > 0 ? accounts[0].balance : 0; // Assuming first account
+  const currentBalance = accounts.length > 0 ? accounts[0].balance : 0; 
 
   const recentTransactions = transactions.slice(0, 5);
 
@@ -61,7 +62,7 @@ export default function DashboardPage() {
 
   const spendingChartData = Object.entries(spendingByCategory)
     .map(([name, value]) => ({ name, value }))
-    .sort((a,b) => b.value - a.value); // Sort for pie chart display
+    .sort((a,b) => b.value - a.value); 
 
   const chartConfig: ChartConfig = spendingChartData.reduce((acc, item, index) => {
     acc[item.name] = {
@@ -91,7 +92,7 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${currentBalance.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{currentBalance.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">Across all accounts</p>
           </CardContent>
         </Card>
@@ -101,7 +102,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">+${totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-[hsl(var(--chart-3))]">+₹{totalIncome.toFixed(2)}</div>
              <p className="text-xs text-muted-foreground">Based on all recorded income</p>
           </CardContent>
         </Card>
@@ -111,7 +112,7 @@ export default function DashboardPage() {
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">-${totalExpenses.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-destructive">-₹{totalExpenses.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">Based on all recorded expenses</p>
           </CardContent>
         </Card>
@@ -165,8 +166,13 @@ export default function DashboardPage() {
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell><Badge variant="outline">{transaction.category}</Badge></TableCell>
-                    <TableCell className={`text-right font-medium ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                    <TableCell 
+                      className={cn(
+                        "text-right font-medium",
+                        transaction.type === 'income' ? 'text-[hsl(var(--chart-3))]' : 'text-destructive'
+                      )}
+                    >
+                      {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -195,17 +201,17 @@ export default function DashboardPage() {
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">{budget.category}</span>
                   <span className="text-sm text-muted-foreground">
-                    ${spent.toFixed(2)} / ${budget.limit.toFixed(2)}
+                    ₹{spent.toFixed(2)} / ₹{budget.limit.toFixed(2)}
                   </span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2.5">
                   <div 
-                    className={`h-2.5 rounded-full ${percentage > 100 ? 'bg-destructive' : 'bg-primary'}`}
+                    className={cn("h-2.5 rounded-full", percentage > 100 ? 'bg-destructive' : 'bg-primary')}
                     style={{ width: `${Math.min(percentage, 100)}%` }}
                   ></div>
                 </div>
-                <p className={`text-xs mt-1 ${remaining < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  {remaining >= 0 ? `$${remaining.toFixed(2)} remaining` : `$${(-remaining).toFixed(2)} over budget`}
+                <p className={cn("text-xs mt-1", remaining < 0 ? 'text-destructive' : 'text-muted-foreground')}>
+                  {remaining >= 0 ? `₹${remaining.toFixed(2)} remaining` : `₹${(-remaining).toFixed(2)} over budget`}
                 </p>
               </div>
             );

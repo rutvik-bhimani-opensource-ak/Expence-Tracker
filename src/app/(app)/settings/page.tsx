@@ -22,7 +22,6 @@ export default function SettingsPage() {
   const { accounts, updateAccount, addAccount } = useAppData();
   const { toast } = useToast();
   
-  // Assuming one primary account for now, or could be extended to select/manage multiple
   const primaryAccount = accounts.length > 0 ? accounts[0] : null;
 
   const form = useForm<AccountFormValues>({
@@ -45,10 +44,10 @@ export default function SettingsPage() {
   const onSubmit = (data: AccountFormValues) => {
     if (primaryAccount) {
       updateAccount({ ...primaryAccount, name: data.accountName, balance: data.initialBalance });
-      toast({ title: "Account Updated", description: `${data.accountName} balance set to $${data.initialBalance.toFixed(2)}.` });
+      toast({ title: "Account Updated", description: `${data.accountName} balance set to ₹${data.initialBalance.toFixed(2)}.` });
     } else {
       addAccount({ name: data.accountName, balance: data.initialBalance });
-      toast({ title: "Account Added", description: `${data.accountName} created with balance $${data.initialBalance.toFixed(2)}.` });
+      toast({ title: "Account Added", description: `${data.accountName} created with balance ₹${data.initialBalance.toFixed(2)}.` });
     }
   };
 
@@ -69,7 +68,7 @@ export default function SettingsPage() {
               {form.formState.errors.accountName && <p className="text-sm text-destructive">{form.formState.errors.accountName.message}</p>}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="initialBalance">Current Balance ($)</Label>
+              <Label htmlFor="initialBalance">Current Balance (₹)</Label>
               <Input id="initialBalance" type="number" step="0.01" {...form.register("initialBalance")} />
               {form.formState.errors.initialBalance && <p className="text-sm text-destructive">{form.formState.errors.initialBalance.message}</p>}
             </div>
@@ -80,7 +79,6 @@ export default function SettingsPage() {
         </form>
       </Card>
       
-      {/* Future settings can be added here, e.g., category management, currency preferences */}
        <Card>
         <CardHeader>
           <CardTitle>Theme Preferences</CardTitle>
