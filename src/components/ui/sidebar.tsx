@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -322,8 +323,30 @@ const SidebarInset = React.forwardRef<
     <main
       ref={ref}
       className={cn(
-        "relative flex min-h-svh flex-1 flex-col bg-background",
-        "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
+        "relative flex min-h-svh flex-1 flex-col bg-background transition-[margin-left] duration-200 ease-linear",
+
+        // Margins for NON-INSET variants (sidebar, floating)
+        // When sidebar is EXPANDED
+        "md:peer-data-[state=expanded]:peer-data-[variant=sidebar]:ml-[var(--sidebar-width)]",
+        "md:peer-data-[state=expanded]:peer-data-[variant=floating]:ml-[var(--sidebar-width)]",
+
+        // When sidebar is COLLAPSED
+        //  Collapsible type: ICON
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=sidebar]:ml-[var(--sidebar-width-icon)]",
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=floating]:ml-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]",
+        //  Collapsible type: OFFCANVAS (sidebar is off-screen, so ml-0)
+        "md:peer-data-[state=collapsed]:peer-data-[collapsible=offcanvas]:ml-0",
+
+
+        // Original INSET variant specific styles
+        "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))]",
+        "md:peer-data-[variant=inset]:m-2", // This applies the overall margin for the inset area
+        // For inset, when collapsed, its internal margin might change (e.g. if it shows an icon bar)
+        "md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2", // Original style for collapsed inset
+        // For inset, when expanded, its internal margin is 0 because m-2 handles the container
+        "md:peer-data-[state=expanded]:peer-data-[variant=inset]:ml-0", // Original style for expanded inset
+
+        "md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow", // Rounding and shadow for inset
         className
       )}
       {...props}
