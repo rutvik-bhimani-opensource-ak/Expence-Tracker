@@ -1,5 +1,6 @@
 
 'use client';
+import React from 'react'; // Added React import
 import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
