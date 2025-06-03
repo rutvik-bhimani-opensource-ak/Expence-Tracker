@@ -3,54 +3,51 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Transaction, BudgetGoal, Account, Category } from '@/lib/types';
-// AllCategories is not directly used in this file anymore, but Expense/IncomeCategories are used in AddTransactionDialog
-// For simplicity, if not needed here directly, we could remove the AllCategories import.
-// For now, keeping it as it doesn't harm.
-import { AllCategories } from '@/lib/types'; 
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  updateDoc,
+  query,
+  orderBy,
+  getDocs,
+  writeBatch,
+  Timestamp,
+  serverTimestamp,
+  setDoc,
+  getDoc
+} from 'firebase/firestore';
 
 interface AppDataContextType {
   transactions: Transaction[];
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'spent'>) => void;
-  deleteTransaction: (transactionId: string) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'spent'>) => Promise<void>;
+  deleteTransaction: (transactionId: string) => Promise<void>;
   budgets: BudgetGoal[];
-  addBudget: (budget: Omit<BudgetGoal, 'id' | 'spent'>) => void;
-  updateBudget: (budget: BudgetGoal) => void;
-  deleteBudget: (budgetId: string) => void;
+  addBudget: (budget: Omit<BudgetGoal, 'id' | 'spent'>) => Promise<void>;
+  updateBudget: (budget: BudgetGoal) => Promise<void>;
+  deleteBudget: (budgetId: string) => Promise<void>;
   accounts: Account[];
-  addAccount: (account: Omit<Account, 'id'>) => void;
-  updateAccountBalance: (accountId: string, newBalance: number) => void;
-  updateAccount: (account: Account) => void;
+  addAccount: (account: Omit<Account, 'id'>) => Promise<void>;
+  updateAccountBalance: (accountId: string, newBalance: number) => Promise<void>; // Balance updates handled via transactions mostly
+  updateAccount: (account: Account) => Promise<void>; // For account name changes mainly
   getCategorySpentAmount: (category: Category, month: number, year: number) => number;
   systemMonth: number;
   systemYear: number;
-  setSystemDate: (month: number, year: number) => void;
-  resetAllData: () => void;
-  getAllData: () => { transactions: Transaction[]; budgets: BudgetGoal[]; accounts: Account[], systemMonth: number, systemYear: number };
+  setSystemDate: (month: number, year: number) => Promise<void>;
+  resetAllData: () => Promise<void>;
+  getAllData: () => Promise<{ transactions: Transaction[]; budgets: BudgetGoal[]; accounts: Account[], systemMonth: number, systemYear: number }>;
+  isDataLoading: boolean;
 }
 
-const AppDataContext = createContext<AppDataDataContextType | undefined>(undefined);
+const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 
-const initialDemoTransactions: Transaction[] = [
-  { id: '1', date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 2).toISOString(), description: 'Groceries', amount: 75.50, category: 'Food', type: 'expense', vendor: 'SuperMart' },
-  { id: '2', date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1).toISOString(), description: 'Salary Deposit', amount: 2500, category: 'Salary', type: 'income', vendor: 'Tech Corp' },
-  { id: '3', date: new Date().toISOString(), description: 'Coffee', amount: 4.75, category: 'Food', type: 'expense', vendor: 'Cafe Central' },
-];
-
-const initialDemoBudgets: BudgetGoal[] = [
-  { id: 'b1', category: 'Food', limit: 400, spent: 0 },
-  { id: 'b2', category: 'Entertainment', limit: 100, spent: 0 },
-];
-
-const initialDemoAccounts: Account[] = [
-  { id: 'a1', name: 'Main Checking Account', balance: 5000 },
-];
-
-const LOCAL_STORAGE_KEY_TRANSACTIONS = 'frugalflow_transactions';
-const LOCAL_STORAGE_KEY_BUDGETS = 'frugalflow_budgets';
-const LOCAL_STORAGE_KEY_ACCOUNTS = 'frugalflow_accounts';
-const LOCAL_STORAGE_KEY_SYSTEM_MONTH = 'frugalflow_systemMonth';
-const LOCAL_STORAGE_KEY_SYSTEM_YEAR = 'frugalflow_systemYear';
-
+const TRANSACTIONS_COLLECTION = 'transactions';
+const BUDGETS_COLLECTION = 'budgets';
+const ACCOUNTS_COLLECTION = 'accounts'; // Will store a single document for the primary account
+const APP_SETTINGS_DOC = 'app_settings'; // Document to store systemMonth and systemYear
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -58,73 +55,72 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [systemMonth, setSystemMonthState] = useState<number>(new Date().getMonth());
   const [systemYear, setSystemYearState] = useState<number>(new Date().getFullYear());
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
-
+  // Fetch initial settings (systemMonth, systemYear)
   useEffect(() => {
-    const storedTransactions = localStorage.getItem(LOCAL_STORAGE_KEY_TRANSACTIONS);
-    const storedBudgets = localStorage.getItem(LOCAL_STORAGE_KEY_BUDGETS);
-    const storedAccounts = localStorage.getItem(LOCAL_STORAGE_KEY_ACCOUNTS);
-    const storedSystemMonth = localStorage.getItem(LOCAL_STORAGE_KEY_SYSTEM_MONTH);
-    const storedSystemYear = localStorage.getItem(LOCAL_STORAGE_KEY_SYSTEM_YEAR);
-
-    if (storedTransactions) {
-      setTransactions(JSON.parse(storedTransactions));
-    } else {
-      setTransactions(initialDemoTransactions);
-    }
-    if (storedBudgets) {
-      setBudgets(JSON.parse(storedBudgets));
-    } else {
-      setBudgets(initialDemoBudgets);
-    }
-    if (storedAccounts) {
-      setAccounts(JSON.parse(storedAccounts));
-    } else {
-      setAccounts(initialDemoAccounts);
-    }
-    if (storedSystemMonth) {
-      setSystemMonthState(JSON.parse(storedSystemMonth));
-    } else {
-      setSystemMonthState(new Date().getMonth());
-    }
-    if (storedSystemYear) {
-      setSystemYearState(JSON.parse(storedSystemYear));
-    } else {
-      setSystemYearState(new Date().getFullYear());
-    }
-    setIsLoaded(true);
+    setIsDataLoading(true);
+    const settingsDocRef = doc(db, APP_SETTINGS_DOC, 'current');
+    const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setSystemMonthState(data.systemMonth ?? new Date().getMonth());
+        setSystemYearState(data.systemYear ?? new Date().getFullYear());
+      } else {
+        // Initialize settings if they don't exist
+        setDoc(settingsDocRef, { 
+          systemMonth: new Date().getMonth(), 
+          systemYear: new Date().getFullYear() 
+        });
+      }
+    }, (error) => {
+      console.error("Error fetching app settings:", error);
+    });
+    return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_TRANSACTIONS, JSON.stringify(transactions));
-    }
-  }, [transactions, isLoaded]);
-
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_BUDGETS, JSON.stringify(budgets));
-    }
-  }, [budgets, isLoaded]);
-
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
-    }
-  }, [accounts, isLoaded]);
   
+  // Transactions listener
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_MONTH, JSON.stringify(systemMonth));
-    }
-  }, [systemMonth, isLoaded]);
+    const q = query(collection(db, TRANSACTIONS_COLLECTION), orderBy('date', 'desc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedTransactions: Transaction[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        fetchedTransactions.push({
+          id: doc.id,
+          ...data,
+          date: (data.date as Timestamp).toDate().toISOString(), // Convert Firestore Timestamp to ISO string
+        } as Transaction);
+      });
+      setTransactions(fetchedTransactions);
+      if(isDataLoading) setIsDataLoading(false); // Assume data loaded after first transaction fetch
+    }, (error) => {
+      console.error("Error fetching transactions:", error);
+      setIsDataLoading(false);
+    });
+    return () => unsubscribe();
+  }, [isDataLoading]); // Added isDataLoading to deps, might need refinement
 
+  // Accounts listener (assuming one primary account)
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_YEAR, JSON.stringify(systemYear));
-    }
-  }, [systemYear, isLoaded]);
+    const accountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary'); // Fixed ID for the single account
+    const unsubscribe = onSnapshot(accountDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setAccounts([{ id: docSnap.id, ...docSnap.data() } as Account]);
+      } else {
+        // Create a default account if none exists
+        const defaultAccount: Omit<Account, 'id'> = { name: 'Main Account', balance: 0 };
+        setDoc(accountDocRef, defaultAccount)
+          .then(() => setAccounts([{ id: 'primary', ...defaultAccount }]))
+          .catch(err => console.error("Error creating default account:", err));
+      }
+       if(isDataLoading && transactions.length === 0) setIsDataLoading(false); // If no transactions, account signals loading end
+    }, (error) => {
+      console.error("Error fetching account:", error);
+      if(isDataLoading && transactions.length === 0) setIsDataLoading(false);
+    });
+    return () => unsubscribe();
+  }, [isDataLoading, transactions.length]);
 
 
   const getCategorySpentAmount = useCallback((category: Category, month: number, year: number): number => {
@@ -136,103 +132,166 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions]);
 
-  // Recalculate budget spent amounts when transactions or system date change
-  useEffect(() => {
-    if (isLoaded) { // Only run if initial load from localStorage is complete
-      setBudgets(prevBudgets =>
+  // Budgets listener & recalculate spent amounts
+   useEffect(() => {
+    const q = query(collection(db, BUDGETS_COLLECTION));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedBudgets: BudgetGoal[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        fetchedBudgets.push({
+          id: doc.id,
+          ...data,
+          spent: getCategorySpentAmount(data.category, systemMonth, systemYear),
+        } as BudgetGoal);
+      });
+      setBudgets(fetchedBudgets);
+    }, (error) => {
+      console.error("Error fetching budgets:", error);
+    });
+    
+    // This part ensures 'spent' is updated if only systemMonth/Year or transactions change,
+    // without re-fetching budgets, assuming budgets are already loaded.
+    setBudgets(prevBudgets =>
         prevBudgets.map(budget => ({
           ...budget,
           spent: getCategorySpentAmount(budget.category, systemMonth, systemYear),
         }))
       );
-    }
-  }, [transactions, systemMonth, systemYear, getCategorySpentAmount, isLoaded]);
+
+    return () => unsubscribe();
+  }, [transactions, systemMonth, systemYear, getCategorySpentAmount]);
 
 
-  const updateAccountBalance = (accountId: string, newBalance: number) => {
-    setAccounts(prev => prev.map(acc => acc.id === accountId ? { ...acc, balance: newBalance } : acc));
-  };
-
-  const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction = { ...transaction, id: Date.now().toString() + Math.random().toString(36).substring(2, 15) };
-    setTransactions(prev => [newTransaction, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+  const updateAccountBalanceFirestore = async (amountChange: number) => {
     if (accounts.length > 0) {
       const account = accounts[0];
-      const amountChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
-      updateAccountBalance(account.id, account.balance + amountChange);
+      const newBalance = account.balance + amountChange;
+      const accountDocRef = doc(db, ACCOUNTS_COLLECTION, account.id);
+      await updateDoc(accountDocRef, { balance: newBalance });
     }
   };
+  
+  const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    const transactionWithTimestamp = {
+      ...transaction,
+      date: Timestamp.fromDate(new Date(transaction.date)), // Convert ISO string to Firestore Timestamp
+      createdAt: serverTimestamp() 
+    };
+    await addDoc(collection(db, TRANSACTIONS_COLLECTION), transactionWithTimestamp);
+    const amountChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
+    await updateAccountBalanceFirestore(amountChange);
+  };
 
-  const deleteTransaction = (transactionId: string) => {
+  const deleteTransaction = async (transactionId: string) => {
     const transactionToDelete = transactions.find(t => t.id === transactionId);
     if (!transactionToDelete) return;
-
-    setTransactions(prev => prev.filter(t => t.id !== transactionId));
-    if (accounts.length > 0) {
-      const account = accounts[0];
-      const amountChange = transactionToDelete.type === 'income' ? -transactionToDelete.amount : transactionToDelete.amount;
-      updateAccountBalance(account.id, account.balance + amountChange);
-    }
-  };
-  
-  const addBudget = (budget: Omit<BudgetGoal, 'id' | 'spent'>) => {
-    const newBudget = { 
-      ...budget, 
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 15), 
-      spent: getCategorySpentAmount(budget.category, systemMonth, systemYear) 
-    };
-    setBudgets(prev => [...prev, newBudget]);
-  };
-
-  const updateBudget = (updatedBudget: BudgetGoal) => {
-    setBudgets(prev => prev.map(b => b.id === updatedBudget.id ? { ...updatedBudget, spent: getCategorySpentAmount(updatedBudget.category, systemMonth, systemYear) } : b));
-  };
-
-  const deleteBudget = (budgetId: string) => {
-    setBudgets(prev => prev.filter(b => b.id !== budgetId));
-  };
-
-  const addAccount = (account: Omit<Account, 'id'>) => {
-    const newAccount = { ...account, id: Date.now().toString() + Math.random().toString(36).substring(2, 15) };
-    if (accounts.length > 0) {
-      setAccounts([{ ...newAccount, id: accounts[0].id }]); 
-    } else {
-      setAccounts([newAccount]); 
-    }
-  };
-  
-  const updateAccount = (updatedAccount: Account) => {
-    setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc));
-  };
-
-  const setSystemDate = (month: number, year: number) => {
-    setSystemMonthState(month);
-    setSystemYearState(year);
-  };
-
-  const resetAllData = () => {
-    setTransactions([]);
-    setBudgets([]); 
-    setAccounts(prevAccounts =>
-      prevAccounts.length > 0 ? [{ ...prevAccounts[0], balance: 0 }] : []
-    );
-    // System date (month/year) remains as is by default, or could be reset to current actual date
-    // For now, it keeps the user-set system date.
     
-    localStorage.removeItem(LOCAL_STORAGE_KEY_TRANSACTIONS);
-    localStorage.removeItem(LOCAL_STORAGE_KEY_BUDGETS);
-    localStorage.removeItem(LOCAL_STORAGE_KEY_ACCOUNTS);
-    // Optionally reset system date in localStorage too, or leave it
-    // localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_MONTH, JSON.stringify(new Date().getMonth()));
-    // localStorage.setItem(LOCAL_STORAGE_KEY_SYSTEM_YEAR, JSON.stringify(new Date().getFullYear()));
-    // setSystemMonthState(new Date().getMonth()); // if you want to reset system date to actual current
-    // setSystemYearState(new Date().getFullYear());
+    await deleteDoc(doc(db, TRANSACTIONS_COLLECTION, transactionId));
+    const amountChange = transactionToDelete.type === 'income' ? -transactionToDelete.amount : transactionToDelete.amount;
+    await updateAccountBalanceFirestore(amountChange);
   };
   
-  const getAllData = () => {
-    return { transactions, budgets, accounts, systemMonth, systemYear };
+  const addBudget = async (budget: Omit<BudgetGoal, 'id' | 'spent'>) => {
+    // 'spent' will be calculated by the listener based on current transactions & systemDate
+    await addDoc(collection(db, BUDGETS_COLLECTION), budget);
   };
 
+  const updateBudget = async (updatedBudget: BudgetGoal) => {
+    const { id, spent, ...budgetData } = updatedBudget; // 'spent' is dynamic, not stored
+    await updateDoc(doc(db, BUDGETS_COLLECTION, id), budgetData);
+  };
+
+  const deleteBudget = async (budgetId: string) => {
+    await deleteDoc(doc(db, BUDGETS_COLLECTION, budgetId));
+  };
+
+  // addAccount is mostly for initial setup or if primary account is deleted by mistake.
+  // App assumes a single primary account.
+  const addAccount = async (account: Omit<Account, 'id'>) => {
+    const accountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary');
+    await setDoc(accountDocRef, account); // Use setDoc to ensure only one 'primary' account
+  };
+  
+  const updateAccount = async (updatedAccount: Account) => {
+    // Only allow updating the primary account's name. Balance is managed via transactions.
+    const accountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary');
+    await updateDoc(accountDocRef, { name: updatedAccount.name });
+  };
+
+  const updateAccountBalance = async (accountId: string, newBalance: number) => {
+    // This function is mainly for settings page to directly set balance.
+    // AccountId should always be 'primary' in this single-account model.
+    if (accountId === 'primary') {
+        const accountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary');
+        await updateDoc(accountDocRef, { balance: newBalance });
+    }
+  };
+
+  const setSystemDate = async (month: number, year: number) => {
+    const settingsDocRef = doc(db, APP_SETTINGS_DOC, 'current');
+    await setDoc(settingsDocRef, { systemMonth: month, systemYear: year }, { merge: true });
+    // State will update via onSnapshot listener for settings
+  };
+
+  const resetAllData = async () => {
+    setIsDataLoading(true);
+    const batch = writeBatch(db);
+
+    const transactionsSnapshot = await getDocs(collection(db, TRANSACTIONS_COLLECTION));
+    transactionsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+    const budgetsSnapshot = await getDocs(collection(db, BUDGETS_COLLECTION));
+    budgetsSnapshot.forEach(doc => batch.delete(doc.ref));
+    
+    // Reset primary account balance to 0, but keep the account document
+    const accountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary');
+    const accountSnap = await getDoc(accountDocRef);
+    if (accountSnap.exists()) {
+        batch.update(accountDocRef, { balance: 0 });
+    } else {
+        // If somehow primary account doc is gone, re-create it with 0 balance
+        batch.set(accountDocRef, { name: "Main Account", balance: 0 });
+    }
+
+
+    // Reset system date to current actual month/year
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const settingsDocRef = doc(db, APP_SETTINGS_DOC, 'current');
+    batch.set(settingsDocRef, { systemMonth: currentMonth, systemYear: currentYear });
+    
+    await batch.commit();
+    // Local state will update via onSnapshot listeners
+    setIsDataLoading(false);
+  };
+  
+  const getAllData = async () => {
+    // This function will now fetch from Firestore directly for export.
+    // Note: This fetches a snapshot, not using the real-time data in state directly,
+    // to ensure it gets the latest at the moment of export.
+    const transactionsSnapshot = await getDocs(query(collection(db, TRANSACTIONS_COLLECTION), orderBy('date', 'desc')));
+    const exportedTransactions = transactionsSnapshot.docs.map(d => ({ id: d.id, ...d.data(), date: (d.data().date as Timestamp).toDate().toISOString() })) as Transaction[];
+
+    const budgetsSnapshot = await getDocs(collection(db, BUDGETS_COLLECTION));
+    const exportedBudgets = budgetsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as BudgetGoal[]; // 'spent' is not stored
+
+    let exportedAccounts: Account[] = [];
+    const accountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary');
+    const accountSnap = await getDoc(accountDocRef);
+    if (accountSnap.exists()) {
+        exportedAccounts.push({id: accountSnap.id, ...accountSnap.data()} as Account)
+    }
+    
+    // Get current systemMonth/Year from state as it's reactive
+    return { 
+        transactions: exportedTransactions, 
+        budgets: exportedBudgets.map(b => ({...b, spent: getCategorySpentAmount(b.category, systemMonth, systemYear)})), // Add dynamic spent for export
+        accounts: exportedAccounts, 
+        systemMonth, 
+        systemYear 
+    };
+  };
 
   return (
     <AppDataContext.Provider value={{ 
@@ -241,9 +300,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       accounts, addAccount, updateAccountBalance, updateAccount,
       getCategorySpentAmount,
       systemMonth, systemYear, setSystemDate,
-      resetAllData, getAllData
+      resetAllData, getAllData,
+      isDataLoading
     }}>
-      {isLoaded ? children : null /* Or a loading spinner */}
+      {children}
     </AppDataContext.Provider>
   );
 }
@@ -255,4 +315,3 @@ export function useAppData() {
   }
   return context;
 }
-
