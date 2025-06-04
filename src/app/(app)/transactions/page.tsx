@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { AddTransactionDialog } from '@/components/transactions/add-transaction-dialog';
 import { PageHeader } from '@/components/shared/page-header';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Landmark, Wallet } from 'lucide-react'; // Added Landmark, Wallet
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getCategoryIcon } from '@/lib/category-utils';
 
 export default function TransactionsPage() {
-  const { transactions, deleteTransaction } = useAppData();
+  const { transactions, deleteTransaction, getAccountById } = useAppData();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   // const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined); // Edit functionality can be added later
 
@@ -53,6 +53,7 @@ export default function TransactionsPage() {
               <TableHead>Date</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Account</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -61,6 +62,8 @@ export default function TransactionsPage() {
           <TableBody>
             {transactions.length > 0 ? transactions.map((transaction) => {
               const CategoryIcon = getCategoryIcon(transaction.category);
+              const accountUsed = getAccountById(transaction.accountId);
+              const AccountIcon = transaction.accountId === 'primary' ? Landmark : Wallet;
               return (
                 <TableRow key={transaction.id}>
                   <TableCell>{format(new Date(transaction.date), 'MMM dd, yyyy')}</TableCell>
@@ -69,6 +72,12 @@ export default function TransactionsPage() {
                     <Badge variant="outline" className="flex items-center w-fit">
                       <CategoryIcon className="mr-1.5 h-3.5 w-3.5" />
                       {transaction.category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                     <Badge variant="outline" className="flex items-center w-fit text-xs">
+                        <AccountIcon className="mr-1.5 h-3 w-3" />
+                        {accountUsed?.name || transaction.accountId}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -124,7 +133,7 @@ export default function TransactionsPage() {
               );
             }) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                   No transactions recorded.
                 </TableCell>
               </TableRow>

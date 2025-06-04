@@ -17,11 +17,11 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAppData } from '@/contexts/app-data-context';
-import type { Category, Transaction } from '@/lib/types';
+import type { Category, Transaction, Account } from '@/lib/types';
 import { AllCategories, ExpenseCategories, IncomeCategories } from '@/lib/types';
 import { categorizeTransaction } from '@/ai/flows/categorize-transaction'; 
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, Loader2 } from 'lucide-react';
+import { CalendarIcon, Loader2, Landmark, Wallet } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -34,6 +34,7 @@ const transactionFormSchema = z.object({
   date: z.date({ required_error: "Date is required" }),
   type: z.enum(['income', 'expense']),
   category: z.custom<Category>(val => AllCategories.includes(val as Category), "Invalid category"),
+  accountId: z.enum(['primary', 'cash'], { required_error: "Account is required" }),
   vendor: z.string().optional(),
 });
 
@@ -46,13 +47,14 @@ interface AddTransactionDialogProps {
 }
 
 export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }: AddTransactionDialogProps) {
-  const { addTransaction } = useAppData();
+  const { addTransaction, accounts, getAccountById } = useAppData();
   const { toast } = useToast();
   const [isCategorizing, setIsCategorizing] = useState(false);
   
   const defaultType = defaultTransaction?.type || 'expense';
   const initialCategories = defaultType === 'income' ? IncomeCategories : ExpenseCategories;
   const defaultCategory = defaultTransaction?.category || initialCategories[0];
+  const defaultAccountId = defaultTransaction?.accountId || 'primary';
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
@@ -62,6 +64,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
       date: defaultTransaction?.date ? new Date(defaultTransaction.date) : new Date(),
       type: defaultType,
       category: defaultCategory,
+      accountId: defaultAccountId,
       vendor: defaultTransaction?.vendor || '',
     },
   });
@@ -81,6 +84,20 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
        form.setValue('category', newAvailableCategories[0]);
     }
   }, [transactionType, form, defaultTransaction]);
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        description: defaultTransaction?.description || '',
+        amount: defaultTransaction?.amount || undefined,
+        date: defaultTransaction?.date ? new Date(defaultTransaction.date) : new Date(),
+        type: defaultTransaction?.type || 'expense',
+        category: defaultTransaction?.category || (defaultTransaction?.type === 'income' ? IncomeCategories[0] : ExpenseCategories[0]),
+        accountId: defaultTransaction?.accountId || 'primary',
+        vendor: defaultTransaction?.vendor || '',
+      });
+    }
+  }, [open, defaultTransaction, form]);
 
 
   const handleAICategorize = async () => {
@@ -114,21 +131,30 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
   };
 
   function onSubmit(data: TransactionFormValues) {
+    // Assuming addTransaction in context now handles accountId correctly
     addTransaction({
       ...data,
       date: data.date.toISOString(),
     });
-    toast({ title: "Transaction Added", description: `${data.description} for ₹${data.amount.toFixed(2)} was added.` });
+    const accountName = getAccountById(data.accountId)?.name || data.accountId;
+    toast({ title: "Transaction Added", description: `${data.description} for ₹${data.amount.toFixed(2)} from ${accountName} was added.` });
+    // Reset form after submission
     form.reset({ 
         description: '', 
         amount: undefined, 
         date: new Date(), 
         type: 'expense', 
         category: ExpenseCategories[0], 
+        accountId: 'primary',
         vendor: '' 
     });
     onOpenChange(false);
   }
+  
+  const accountOptions: { value: 'primary' | 'cash'; label: string; icon: React.ElementType }[] = [
+    { value: 'primary', label: getAccountById('primary')?.name || 'Main Account', icon: Landmark },
+    { value: 'cash', label: getAccountById('cash')?.name || 'Cash Account', icon: Wallet },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -140,6 +166,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
                 date: new Date(), 
                 type: 'expense', 
                 category: ExpenseCategories[0], 
+                accountId: 'primary',
                 vendor: '' 
             });
         }
@@ -196,6 +223,36 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
             />
             {form.formState.errors.date && <p className="col-span-4 text-destructive text-sm text-right">{form.formState.errors.date.message}</p>}
           </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="accountId" className="text-right">Account</Label>
+            <Controller
+              control={form.control}
+              name="accountId"
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountOptions.map(opt => {
+                      const Icon = opt.icon;
+                      return (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <div className="flex items-center">
+                            <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                            {opt.label}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+             {form.formState.errors.accountId && <p className="col-span-4 text-destructive text-sm text-right">{form.formState.errors.accountId.message}</p>}
+          </div>
+
 
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="type" className="text-right">Type</Label>
@@ -256,7 +313,7 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => {
                  onOpenChange(false); 
-                 form.reset({ description: '', amount: undefined, date: new Date(), type: 'expense', category: ExpenseCategories[0], vendor: '' });
+                 form.reset({ description: '', amount: undefined, date: new Date(), type: 'expense', category: ExpenseCategories[0], accountId: 'primary', vendor: '' });
             }}>Cancel</Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

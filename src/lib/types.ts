@@ -37,10 +37,11 @@ export interface Transaction {
   id: string;
   date: string; // ISO string
   description: string;
-  amount: number; // Positive for income, negative for expenses
+  amount: number;
   category: Category;
   type: 'income' | 'expense';
   vendor?: string;
+  accountId: 'primary' | 'cash'; // Identifies the source/destination account
 }
 
 export interface BudgetGoal {
@@ -51,7 +52,7 @@ export interface BudgetGoal {
 }
 
 export interface Account {
-  id: string;
+  id: 'primary' | 'cash'; // Fixed IDs for Main and Cash accounts
   name: string;
   balance: number;
 }

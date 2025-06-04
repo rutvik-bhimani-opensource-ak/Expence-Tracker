@@ -1,11 +1,11 @@
 
 'use client';
-import React from 'react'; // Added React import
+import React from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus } from 'lucide-react';
+import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
@@ -20,9 +20,12 @@ import { getCategoryIcon } from '@/lib/category-utils';
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 export default function DashboardPage() {
-  const { transactions, accounts, budgets, getCategorySpentAmount, systemMonth, systemYear } = useAppData();
+  const { transactions, accounts, budgets, systemMonth, systemYear, getAccountById } = useAppData();
 
   const currentMonthName = format(new Date(systemYear, systemMonth), 'MMMM yyyy');
+
+  const primaryAccount = getAccountById('primary');
+  const cashAccount = getAccountById('cash');
 
   const totalIncome = transactions
     .filter(t => {
@@ -38,12 +41,9 @@ export default function DashboardPage() {
     })
     .reduce((sum, t) => sum + t.amount, 0);
   
-  const currentBalance = accounts.length > 0 ? accounts[0].balance : 0; 
-
-  const recentTransactions = [...transactions] // Create a copy before sorting
+  const recentTransactions = [...transactions]
     .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
-
 
   const spendingByCategory = transactions
     .filter(t => {
@@ -60,7 +60,7 @@ export default function DashboardPage() {
     .sort((a,b) => b.value - a.value); 
 
   const chartConfig: ChartConfig = spendingChartData.reduce((acc, item, index) => {
-    const Icon = getCategoryIcon(item.name as any); // any for now, should be Category type
+    const Icon = getCategoryIcon(item.name as any);
     acc[item.name] = {
       label: item.name,
       color: CHART_COLORS[index % CHART_COLORS.length],
@@ -83,15 +83,25 @@ export default function DashboardPage() {
       </PageHeader>
        <p className="text-sm text-muted-foreground sm:hidden -mt-4 mb-4">Displaying data for: {currentMonthName}</p>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">{primaryAccount?.name || 'Main Account'}</CardTitle>
+            <Landmark className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{currentBalance.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Across all accounts</p>
+            <div className="text-2xl font-bold">₹{(primaryAccount?.balance || 0).toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Current balance</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{cashAccount?.name || 'Cash Account'}</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{(cashAccount?.balance || 0).toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Cash on hand</p>
           </CardContent>
         </Card>
         <Card>
@@ -171,12 +181,15 @@ export default function DashboardPage() {
                 <TableRow>
                   <TableHead>Description</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Account</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recentTransactions.map((transaction) => {
                   const CategoryIcon = getCategoryIcon(transaction.category);
+                  const accountUsed = getAccountById(transaction.accountId);
+                  const AccountIcon = transaction.accountId === 'primary' ? Landmark : Wallet;
                   return (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
@@ -184,6 +197,12 @@ export default function DashboardPage() {
                         <Badge variant="outline" className="flex items-center w-fit">
                            <CategoryIcon className="mr-1.5 h-3.5 w-3.5" />
                            {transaction.category}
+                        </Badge>
+                    </TableCell>
+                     <TableCell>
+                        <Badge variant="outline" className="flex items-center w-fit text-xs">
+                           <AccountIcon className="mr-1.5 h-3 w-3" />
+                           {accountUsed?.name || transaction.accountId}
                         </Badge>
                     </TableCell>
                     <TableCell 

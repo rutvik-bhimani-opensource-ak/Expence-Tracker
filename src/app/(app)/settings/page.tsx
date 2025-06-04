@@ -14,13 +14,14 @@ import { useEffect, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
-import { Download, RotateCcw, CalendarCog, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Download, RotateCcw, CalendarCog, Loader2, FileSpreadsheet, Landmark, Wallet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Transaction } from '@/lib/types';
+import type { Transaction, Account } from '@/lib/types';
 
 const accountFormSchema = z.object({
+  accountId: z.enum(['primary', 'cash']),
   accountName: z.string().min(1, "Account name is required"),
-  initialBalance: z.coerce.number().min(0, "Balance cannot be negative"),
+  currentBalance: z.coerce.number().min(0, "Balance cannot be negative"),
 });
 type AccountFormValues = z.infer<typeof accountFormSchema>;
 
@@ -32,23 +33,25 @@ type SystemDateFormValues = z.infer<typeof systemDateFormSchema>;
 
 export default function SettingsPage() {
   const { 
-    accounts, updateAccount, updateAccountBalance,
+    accounts, updateAccountName, updateAccountBalance,
     getAllData, resetAllData,
     systemMonth, systemYear, setSystemDate,
-    isDataLoading
+    isDataLoading, getAccountById
   } = useAppData();
   const { toast } = useToast();
   const [isProcessingReset, setIsProcessingReset] = useState(false);
   const [isProcessingJSONExport, setIsProcessingJSONExport] = useState(false);
   const [isProcessingXLSXExport, setIsProcessingXLSXExport] = useState(false);
+  const [selectedAccountIdForEdit, setSelectedAccountIdForEdit] = useState<'primary' | 'cash'>('primary');
   
-  const primaryAccount = accounts.length > 0 ? accounts[0] : null;
+  const accountToEdit = getAccountById(selectedAccountIdForEdit);
 
   const accountForm = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      accountName: "Main Account",
-      initialBalance: 0,
+      accountId: 'primary',
+      accountName: "",
+      currentBalance: 0,
     }
   });
 
@@ -61,26 +64,35 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    if (primaryAccount) {
+    if (accountToEdit) {
       accountForm.reset({
-        accountName: primaryAccount.name,
-        initialBalance: primaryAccount.balance
+        accountId: accountToEdit.id,
+        accountName: accountToEdit.name,
+        currentBalance: accountToEdit.balance
+      });
+    } else {
+       // If accountToEdit is undefined (e.g. during initial load before accounts are fetched)
+      const fallbackAccount = getAccountById('primary') || { id: 'primary', name: 'Main Account', balance: 0 };
+       accountForm.reset({
+        accountId: fallbackAccount.id,
+        accountName: fallbackAccount.name,
+        currentBalance: fallbackAccount.balance
       });
     }
-  }, [primaryAccount, accountForm]);
+  }, [accountToEdit, accountForm, getAccountById]);
 
   useEffect(() => {
     systemDateForm.reset({ month: systemMonth, year: systemYear });
   }, [systemMonth, systemYear, systemDateForm]);
 
   const onAccountSubmit = async (data: AccountFormValues) => {
-    if (primaryAccount) {
-      await updateAccount({ ...primaryAccount, name: data.accountName });
-      if (primaryAccount.balance !== data.initialBalance) {
-        await updateAccountBalance(primaryAccount.id, data.initialBalance);
-      }
-      toast({ title: "Account Updated", description: `${data.accountName} settings saved.` });
-    } 
+    if (data.accountName !== accountToEdit?.name) {
+      await updateAccountName(data.accountId, data.accountName);
+    }
+    if (data.currentBalance !== accountToEdit?.balance) {
+      await updateAccountBalance(data.accountId, data.currentBalance);
+    }
+    toast({ title: "Account Updated", description: `${data.accountName} settings saved.` });
   };
 
   const onSystemDateSubmit = async (data: SystemDateFormValues) => {
@@ -109,7 +121,7 @@ export default function SettingsPage() {
   const handleExportDataXLSX = async () => {
     setIsProcessingXLSXExport(true);
     try {
-      const { transactions } = await getAllData();
+      const { transactions, accounts: exportedAccounts } = await getAllData();
 
       if (transactions.length === 0) {
         toast({ title: "No Data to Export", description: "There are no transactions to export to XLSX.", variant: "default" });
@@ -129,7 +141,7 @@ export default function SettingsPage() {
       const workbook = XLSX.utils.book_new();
 
       Object.keys(groupedTransactions).sort().forEach(monthYearKey => {
-        const sheetName = format(new Date(monthYearKey + '-01'), 'MMM yyyy'); // Ensure date is parsed correctly for sheet name
+        const sheetName = format(new Date(monthYearKey + '-01'), 'MMM yyyy');
         const monthTransactions = groupedTransactions[monthYearKey];
         
         const sheetData = monthTransactions.map(t => ({
@@ -137,6 +149,7 @@ export default function SettingsPage() {
           Description: t.description,
           Category: t.category,
           Type: t.type,
+          Account: exportedAccounts.find(a => a.id === t.accountId)?.name || t.accountId,
           'Amount (₹)': t.amount.toFixed(2),
           Vendor: t.vendor || '',
         }));
@@ -160,16 +173,8 @@ export default function SettingsPage() {
     setIsProcessingReset(true);
     try {
       await resetAllData();
-      // Ensure accountForm and systemDateForm are reset to reflect the new state
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      systemDateForm.reset({ month: currentMonth, year: currentYear });
-      if (accounts.length > 0 && accounts[0].name) { // Check if account exists before trying to reset form with its name
-         accountForm.reset({ accountName: accounts[0].name, initialBalance: 0 });
-      } else {
-         accountForm.reset({ accountName: "Main Account", initialBalance: 0 });
-      }
-      toast({ title: "Data Reset", description: "All transactions and budgets have been deleted. Your primary account balance has been reset to ₹0.00.", variant: "destructive" });
+      // Form reset will be handled by useEffect watching accountToEdit
+      toast({ title: "Data Reset", description: "All transactions and budgets have been deleted. Account balances reset to ₹0.00.", variant: "destructive" });
     } catch (error) {
       console.error("Reset error:", error);
       toast({ title: "Reset Failed", description: "Could not reset data.", variant: "destructive" });
@@ -177,6 +182,11 @@ export default function SettingsPage() {
       setIsProcessingReset(false);
     }
   };
+  
+  const accountOptions: { value: 'primary' | 'cash'; label: string; icon: React.ElementType }[] = [
+    { value: 'primary', label: getAccountById('primary')?.name || 'Main Account', icon: Landmark },
+    { value: 'cash', label: getAccountById('cash')?.name || 'Cash Account', icon: Wallet },
+  ];
 
   const months = Array.from({ length: 12 }, (_, i) => ({
     value: i,
@@ -185,7 +195,7 @@ export default function SettingsPage() {
 
   const currentSystemDateFormatted = format(new Date(systemYear, systemMonth), 'MMMM yyyy');
 
-  if (isDataLoading && !primaryAccount) {
+  if (isDataLoading && accounts.length < 2) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -200,25 +210,58 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{primaryAccount ? 'Manage Account' : 'Account Details'}</CardTitle>
-          <CardDescription>{primaryAccount ? 'Manage your primary account details.' : 'Primary account details (balance is updated via transactions).'}</CardDescription>
+          <CardTitle>Manage Account</CardTitle>
+          <CardDescription>Select an account to manage its details. Balance is primarily updated by transactions.</CardDescription>
         </CardHeader>
         <form onSubmit={accountForm.handleSubmit(onAccountSubmit)}>
           <CardContent className="space-y-4">
             <div className="space-y-1">
+              <Label htmlFor="selectAccountForEdit">Account to Manage</Label>
+                <Select 
+                    value={selectedAccountIdForEdit} 
+                    onValueChange={(value: 'primary' | 'cash') => setSelectedAccountIdForEdit(value)}
+                    disabled={accountForm.formState.isSubmitting}
+                >
+                  <SelectTrigger id="selectAccountForEdit">
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountOptions.map(opt => {
+                        const Icon = opt.icon;
+                        return (
+                        <SelectItem key={opt.value} value={opt.value}>
+                            <div className="flex items-center">
+                            <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                            {opt.label}
+                            </div>
+                        </SelectItem>
+                        );
+                    })}
+                  </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="accountName">Account Name</Label>
-              <Input id="accountName" {...accountForm.register("accountName")} disabled={!primaryAccount || accountForm.formState.isSubmitting} />
+              <Controller
+                name="accountName"
+                control={accountForm.control}
+                render={({ field }) => <Input id="accountName" {...field} disabled={!accountToEdit || accountForm.formState.isSubmitting} />}
+              />
               {accountForm.formState.errors.accountName && <p className="text-sm text-destructive">{accountForm.formState.errors.accountName.message}</p>}
             </div>
             <div className="space-y-1">
-              <Label htmlFor="initialBalance">Current Balance (₹)</Label>
-              <Input id="initialBalance" type="number" step="0.01" {...accountForm.register("initialBalance")} disabled={!primaryAccount || accountForm.formState.isSubmitting}/>
-              {accountForm.formState.errors.initialBalance && <p className="text-sm text-destructive">{accountForm.formState.errors.initialBalance.message}</p>}
-              <p className="text-xs text-muted-foreground">Note: Balance is primarily updated by transactions. This field allows direct adjustment or setting an initial balance.</p>
+              <Label htmlFor="currentBalance">Current Balance (₹)</Label>
+               <Controller
+                name="currentBalance"
+                control={accountForm.control}
+                render={({ field }) => <Input id="currentBalance" type="number" step="0.01" {...field} disabled={!accountToEdit || accountForm.formState.isSubmitting} />}
+              />
+              {accountForm.formState.errors.currentBalance && <p className="text-sm text-destructive">{accountForm.formState.errors.currentBalance.message}</p>}
+              <p className="text-xs text-muted-foreground">Note: Balance is primarily updated by transactions. This field allows direct adjustment.</p>
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={!primaryAccount || accountForm.formState.isSubmitting}>
+            <Button type="submit" disabled={!accountToEdit || accountForm.formState.isSubmitting}>
               {accountForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Account Settings
             </Button>
@@ -295,7 +338,7 @@ export default function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all your transactions and budgets from the database. Your primary account balance will be reset to ₹0.00.
+                  This action cannot be undone. This will permanently delete all your transactions and budgets. Account balances will be reset to ₹0.00.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
