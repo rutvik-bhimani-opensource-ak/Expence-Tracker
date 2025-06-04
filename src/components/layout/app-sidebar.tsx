@@ -14,6 +14,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarTrigger,
+  useSidebar, // Import useSidebar
 } from '@/components/ui/sidebar';
 
 const navItems = [
@@ -68,9 +69,20 @@ export function AppSidebar() {
 
 // Separate component for the trigger to be placed in the main layout
 export function AppSidebarTrigger() {
+    const { isMobile } = useSidebar();
+
+    // Only render the trigger on mobile client-side
+    // md:hidden also controls CSS visibility, but this prevents SSR of a fixed element meant for mobile
+    if (!isMobile) {
+        return null;
+    }
+
     return (
-        <div className="md:hidden p-2 fixed top-2 left-2 z-50 bg-background rounded-md shadow-md">
-            <SidebarTrigger />
-        </div>
+        <SidebarTrigger
+            variant="outline" // Using outline variant for better visibility
+            size="icon"
+            className="fixed top-4 left-4 z-50 h-10 w-10 md:hidden shadow-lg bg-background hover:bg-accent"
+            aria-label="Toggle sidebar"
+        />
     );
 }
