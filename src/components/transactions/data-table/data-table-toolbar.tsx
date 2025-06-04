@@ -25,6 +25,7 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(2000, i), 'MMMM'),
 }));
 
+const ALL_FILTER_VALUE = "_ALL_";
 
 export function DataTableToolbar<TData>({
   table,
@@ -32,7 +33,7 @@ export function DataTableToolbar<TData>({
   data
 }: DataTableToolbarProps<TData>) {
   const { accounts, getAccountById, systemYear, systemMonth } = useAppData();
-  const isFiltered = table.getState().columnFilters.length > 0;
+  
 
   const uniqueYears = React.useMemo(() => {
     const years = new Set<string>();
@@ -51,6 +52,8 @@ export function DataTableToolbar<TData>({
   // For month/year, we'll need a custom filter function on the `date` column
   const [selectedMonth, setSelectedMonth] = React.useState<string>('');
   const [selectedYear, setSelectedYear] = React.useState<string>('');
+
+  const isFiltered = table.getState().columnFilters.length > 0 || selectedMonth !== '' || selectedYear !== '';
 
   React.useEffect(() => {
     const dateColumn = table.getColumn('date');
@@ -87,14 +90,20 @@ export function DataTableToolbar<TData>({
         />
         
         <Select
-          value={currentCategoryFilter.length > 0 ? currentCategoryFilter[0] : ''} // Assuming single select for now for simplicity
-          onValueChange={(value) => table.getColumn('category')?.setFilterValue(value ? [value] : [])}
+          value={currentCategoryFilter.length > 0 ? currentCategoryFilter[0] : ALL_FILTER_VALUE}
+          onValueChange={(value) => {
+            if (value === ALL_FILTER_VALUE) {
+              table.getColumn('category')?.setFilterValue([]);
+            } else {
+              table.getColumn('category')?.setFilterValue(value ? [value] : []);
+            }
+          }}
         >
           <SelectTrigger className="h-9 w-full sm:w-[160px]">
             <SelectValue placeholder="Filter by Category" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Categories</SelectItem>
+            <SelectItem value={ALL_FILTER_VALUE}>All Categories</SelectItem>
             {AllCategories.map(cat => {
               const Icon = getCategoryIcon(cat);
               return <SelectItem key={cat} value={cat}><div className="flex items-center"><Icon className="mr-2 h-4 w-4" />{cat}</div></SelectItem>
@@ -103,48 +112,78 @@ export function DataTableToolbar<TData>({
         </Select>
 
         <Select
-          value={currentAccountFilter.length > 0 ? currentAccountFilter[0] : ''}
-          onValueChange={(value) => table.getColumn('accountId')?.setFilterValue(value ? [value] : [])}
+          value={currentAccountFilter.length > 0 ? currentAccountFilter[0] : ALL_FILTER_VALUE}
+          onValueChange={(value) => {
+            if (value === ALL_FILTER_VALUE) {
+              table.getColumn('accountId')?.setFilterValue([]);
+            } else {
+              table.getColumn('accountId')?.setFilterValue(value ? [value] : []);
+            }
+          }}
         >
           <SelectTrigger className="h-9 w-full sm:w-[160px]">
             <SelectValue placeholder="Filter by Account" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Accounts</SelectItem>
+            <SelectItem value={ALL_FILTER_VALUE}>All Accounts</SelectItem>
             {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select
-          value={currentTypeFilter.length > 0 ? currentTypeFilter[0] : ''}
-          onValueChange={(value) => table.getColumn('type')?.setFilterValue(value ? [value] : [])}
+          value={currentTypeFilter.length > 0 ? currentTypeFilter[0] : ALL_FILTER_VALUE}
+          onValueChange={(value) => {
+            if (value === ALL_FILTER_VALUE) {
+              table.getColumn('type')?.setFilterValue([]);
+            } else {
+              table.getColumn('type')?.setFilterValue(value ? [value] : []);
+            }
+          }}
         >
           <SelectTrigger className="h-9 w-full sm:w-[120px]">
             <SelectValue placeholder="Filter by Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Types</SelectItem>
+            <SelectItem value={ALL_FILTER_VALUE}>All Types</SelectItem>
             <SelectItem value="income">Income</SelectItem>
             <SelectItem value="expense">Expense</SelectItem>
           </SelectContent>
         </Select>
 
-         <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+         <Select 
+            value={selectedMonth || ALL_FILTER_VALUE} 
+            onValueChange={(value) => {
+              if (value === ALL_FILTER_VALUE) {
+                setSelectedMonth('');
+              } else {
+                setSelectedMonth(value);
+              }
+            }}
+          >
           <SelectTrigger className="h-9 w-full sm:w-[150px]">
             <SelectValue placeholder="Filter by Month" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Months</SelectItem>
+            <SelectItem value={ALL_FILTER_VALUE}>All Months</SelectItem>
             {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
           </SelectContent>
         </Select>
 
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
+        <Select 
+            value={selectedYear || ALL_FILTER_VALUE} 
+            onValueChange={(value) => {
+                if (value === ALL_FILTER_VALUE) {
+                    setSelectedYear('');
+                } else {
+                    setSelectedYear(value);
+                }
+            }}
+          >
           <SelectTrigger className="h-9 w-full sm:w-[120px]">
             <SelectValue placeholder="Filter by Year" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Years</SelectItem>
+            <SelectItem value={ALL_FILTER_VALUE}>All Years</SelectItem>
             {uniqueYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
           </SelectContent>
         </Select>
