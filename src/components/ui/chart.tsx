@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,8 +42,9 @@ const ChartContainer = React.forwardRef<
     children: React.ComponentProps<
       typeof RechartsPrimitive.ResponsiveContainer
     >["children"]
+    chartHeight?: number; // Added chartHeight prop
   }
->(({ id, className, children, config, ...props }, ref) => {
+>(({ id, className, children, config, chartHeight, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
@@ -58,7 +60,7 @@ const ChartContainer = React.forwardRef<
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
+        <RechartsPrimitive.ResponsiveContainer width="100%" height={chartHeight || '100%'}>
           {children}
         </RechartsPrimitive.ResponsiveContainer>
       </div>

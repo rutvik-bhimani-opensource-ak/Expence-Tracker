@@ -134,8 +134,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="h-[350px]">
             {spendingChartData.length > 0 ? (
-            <ChartContainer config={chartConfig} className="w-full h-full">
-              <ResponsiveContainer width="100%" height="100%">
+            <ChartContainer config={chartConfig} className="w-full h-full" chartHeight={326}>
+              <ResponsiveContainer>
                 <RechartsPieChart>
                   <ChartTooltip 
                     content={<ChartTooltipContent 

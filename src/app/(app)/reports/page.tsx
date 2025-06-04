@@ -155,7 +155,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent className="h-[400px]">
           {monthlyIncomeExpenseData.some(d => d.income > 0 || d.expenses > 0) ? (
-            <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full">
+            <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full" chartHeight={376}>
               <ResponsiveContainer>
                 <RechartsBarChart data={monthlyIncomeExpenseData}>
                   <CartesianGrid vertical={false} />
@@ -190,7 +190,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent className="h-[400px]">
            {categorySpendingData.length > 0 ? (
-            <ChartContainer config={categoryChartConfig} className="w-full h-full">
+            <ChartContainer config={categoryChartConfig} className="w-full h-full" chartHeight={376}>
                <ResponsiveContainer>
                 <RechartsPieChart>
                   <ChartTooltip 
