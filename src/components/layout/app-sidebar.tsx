@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, List, PieChart, Target, Settings, Coins, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import * as React from "react"; // Added React import for useState and useEffect
 import {
   SidebarProvider,
   Sidebar,
@@ -14,7 +15,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarTrigger,
-  useSidebar, // Import useSidebar
+  useSidebar, 
 } from '@/components/ui/sidebar';
 
 const navItems = [
@@ -70,16 +71,24 @@ export function AppSidebar() {
 // Separate component for the trigger to be placed in the main layout
 export function AppSidebarTrigger() {
     const { isMobile } = useSidebar();
+    const [hasMounted, setHasMounted] = React.useState(false);
 
-    // Only render the trigger on mobile client-side
-    // md:hidden also controls CSS visibility, but this prevents SSR of a fixed element meant for mobile
+    React.useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
+    if (!hasMounted) {
+        return null; // Render nothing on the server and initial client render
+    }
+
+    // Only render the trigger on mobile client-side after mount
     if (!isMobile) {
         return null;
     }
 
     return (
         <SidebarTrigger
-            variant="outline" // Using outline variant for better visibility
+            variant="outline" 
             size="icon"
             className="fixed top-4 left-4 z-50 h-10 w-10 md:hidden shadow-lg bg-background hover:bg-accent"
             aria-label="Toggle sidebar"
