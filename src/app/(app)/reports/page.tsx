@@ -7,7 +7,10 @@ import { PageHeader } from '@/components/shared/page-header';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, TooltipProps } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
-import { format, getYear, getMonth, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { 
+  format, getYear, getMonth, startOfMonth, endOfMonth, isWithinInterval, parseISO,
+  startOfDay, endOfDay, subDays, subMonths, startOfYear, endOfYear, subYears 
+} from 'date-fns';
 import { TrendingUp, BarChart as BarChartIcon, CalendarDays, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCategoryIcon } from '@/lib/category-utils';
@@ -18,6 +21,21 @@ import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+
+type Preset = {
+  label: string;
+  getRange: () => DateRange;
+};
+
+const presets: Preset[] = [
+  { label: "Today", getRange: () => ({ from: startOfDay(new Date()), to: endOfDay(new Date()) }) },
+  { label: "Yesterday", getRange: () => ({ from: startOfDay(subDays(new Date(), 1)), to: endOfDay(subDays(new Date(), 1)) }) },
+  { label: "This Month", getRange: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }) },
+  { label: "Last Month", getRange: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
+  { label: "This Year", getRange: () => ({ from: startOfYear(new Date()), to: endOfYear(new Date()) }) },
+  { label: "Last Year", getRange: () => ({ from: startOfYear(subYears(new Date(), 1)), to: endOfYear(subYears(new Date(), 1)) }) },
+];
+
 
 export default function ReportsPage() {
   const { transactions, systemMonth, systemYear } = useAppData();
@@ -41,13 +59,18 @@ export default function ReportsPage() {
       }
       return `${format(dateRange.from, 'PPP')} - ${format(dateRange.to, 'PPP')}`;
     }
+    if (dateRange?.from) { // Handle case where only 'from' is selected
+        return format(dateRange.from, 'PPP');
+    }
     return 'No date range selected';
   }, [dateRange]);
 
   const filteredTransactions = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) return [];
-    const adjustedToDate = new Date(dateRange.to);
-    adjustedToDate.setHours(23, 59, 59, 999); // Ensure 'to' date includes the whole day
+    if (!dateRange?.from) return []; // Only 'from' is mandatory to start filtering
+    
+    const adjustedToDate = dateRange.to 
+        ? new Date(new Date(dateRange.to).setHours(23, 59, 59, 999)) 
+        : new Date(new Date(dateRange.from).setHours(23, 59, 59, 999)); // If no 'to', use 'from' for single day
 
     return transactions.filter(t => {
       const tDate = parseISO(t.date);
@@ -69,7 +92,7 @@ export default function ReportsPage() {
   }, [filteredTransactions]);
   
   const incomeExpenseChartConfig: ChartConfig = {
-    value: { label: "Amount" }, // Generic label
+    value: { label: "Amount" }, 
     Income: { label: "Income", color: "hsl(var(--chart-3))" }, 
     Expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
   };
@@ -112,43 +135,64 @@ export default function ReportsPage() {
           <CardTitle>Report Period</CardTitle>
           <CardDescription>Choose the date range for the reports below. Currently showing: <strong>{selectedPeriodFormatted}</strong></CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="date"
-                  variant={"outline"}
-                  className={cn(
-                    "w-full sm:w-[300px] justify-start text-left font-normal",
-                    !dateRange && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "LLL dd, y")} -{" "}
-                        {format(dateRange.to, "LLL dd, y")}
-                      </>
+        <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <Popover>
+                <PopoverTrigger asChild>
+                    <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                        "w-full sm:w-[300px] justify-start text-left font-normal",
+                        !dateRange?.from && "text-muted-foreground"
+                    )}
+                    >
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                        dateRange.to ? (
+                        <>
+                            {format(dateRange.from, "LLL dd, y")} -{" "}
+                            {format(dateRange.to, "LLL dd, y")}
+                        </>
+                        ) : (
+                        format(dateRange.from, "LLL dd, y")
+                        )
                     ) : (
-                      format(dateRange.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date range</span>
-                  )}
+                        <span>Pick a date range</span>
+                    )}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    />
+                </PopoverContent>
+                </Popover>
+            </div>
+            <div className="flex flex-wrap gap-2">
+            {presets.map((preset) => (
+                <Button
+                    key={preset.label}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDateRange(preset.getRange())}
+                    className={cn(
+                        "text-muted-foreground hover:text-primary hover:bg-primary/10",
+                        dateRange?.from && dateRange.to &&
+                        format(dateRange.from, 'yyyy-MM-dd') === format(preset.getRange().from as Date, 'yyyy-MM-dd') &&
+                        format(dateRange.to, 'yyyy-MM-dd') === format(preset.getRange().to as Date, 'yyyy-MM-dd') &&
+                        "text-primary bg-primary/10 border border-primary/30"
+                    )}
+                >
+                    {preset.label}
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={2}
-                />
-              </PopoverContent>
-            </Popover>
+            ))}
+            </div>
         </CardContent>
       </Card>
 
