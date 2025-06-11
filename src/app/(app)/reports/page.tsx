@@ -167,8 +167,8 @@ export default function ReportsPage() {
   }, [transactions, dateRange]);
 
   const comparisonChartConfig: ChartConfig = {
-    current: { label: "Current Period", color: "hsl(var(--chart-1))" },
-    previous: { label: "Previous Period", color: "hsl(var(--chart-2))" },
+    current: { label: "Current Period", color: "hsl(var(--chart-1))" }, // Blue
+    previous: { label: "Previous Period", color: "hsl(var(--chart-4))" }, // Orange
   };
 
 
@@ -289,7 +289,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Spending by Category</CardTitle>
-            <CardDescription>Breakdown of your total expenses by category for {selectedPeriodFormatted}.</CardDescription>
+            <CardDescription>Breakdown of your total expenses by category for the selected period.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
            {categorySpendingData.length > 0 ? (
@@ -332,8 +332,8 @@ export default function ReportsPage() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Current vs. Previous Year Comparison</CardTitle>
-            <CardDescription>Income & Expenses for {selectedPeriodFormatted} vs. same period last year.</CardDescription>
+            <CardTitle>Current vs. Previous Period Comparison</CardTitle>
+            <CardDescription>Income & Expenses for the selected period vs. same period last year.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
             {comparisonChartData.some(d => d.current > 0 || d.previous > 0) ? (
@@ -355,7 +355,7 @@ export default function ReportsPage() {
                     />
                     <ChartLegend content={<ChartLegendContent />} />
                     <Bar dataKey="current" name="Current Period" fill="hsl(var(--chart-1))" radius={4} />
-                    <Bar dataKey="previous" name="Previous Period" fill="hsl(var(--chart-2))" radius={4} />
+                    <Bar dataKey="previous" name="Previous Period" fill="hsl(var(--chart-4))" radius={4} />
                   </RechartsBarChart>
                 </ResponsiveContainer>
               </ChartContainer>
