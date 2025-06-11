@@ -11,7 +11,7 @@ import { AllCategories, ExpenseCategories, IncomeCategories, type Category } fro
 import type { Account } from '@/lib/types';
 import { useAppData } from '@/contexts/app-data-context';
 import { getCategoryIcon } from '@/lib/category-utils';
-import { format, getYear, getMonth } from 'date-fns';
+import { format, getYear, getMonth, parseISO } from 'date-fns';
 import * as React from 'react';
 
 interface DataTableToolbarProps<TData> {
@@ -37,7 +37,13 @@ export function DataTableToolbar<TData>({
 
   const uniqueYears = React.useMemo(() => {
     const years = new Set<string>();
-    (data as unknown as import('@/lib/types').Transaction[]).forEach(t => years.add(getYear(new Date(t.date)).toString()));
+    (data as unknown as import('@/lib/types').Transaction[]).forEach(t => {
+      try {
+        years.add(getYear(parseISO(t.date)).toString())
+      } catch (e) {
+        // Ignore invalid dates for year calculation
+      }
+    });
     if (!years.has(systemYear.toString())) {
         years.add(systemYear.toString());
     }
@@ -49,7 +55,6 @@ export function DataTableToolbar<TData>({
   const currentAccountFilter = table.getColumn('accountId')?.getFilterValue() as string[] ?? [];
   const currentTypeFilter = table.getColumn('type')?.getFilterValue() as string[] ?? [];
 
-  // For month/year, we'll need a custom filter function on the `date` column
   const [selectedMonth, setSelectedMonth] = React.useState<string>('');
   const [selectedYear, setSelectedYear] = React.useState<string>('');
 
@@ -59,15 +64,13 @@ export function DataTableToolbar<TData>({
     const dateColumn = table.getColumn('date');
     if (!dateColumn) return;
 
-    if (selectedMonth || selectedYear) {
-      dateColumn.setFilterValue(() => (dateStr: string) => {
-        const date = new Date(dateStr);
-        const monthMatch = selectedMonth ? getMonth(date) === parseInt(selectedMonth) : true;
-        const yearMatch = selectedYear ? getYear(date) === parseInt(selectedYear) : true;
-        return monthMatch && yearMatch;
-      });
+    const monthAsInt = selectedMonth ? parseInt(selectedMonth, 10) : undefined;
+    const yearAsInt = selectedYear ? parseInt(selectedYear, 10) : undefined;
+
+    if (monthAsInt !== undefined || yearAsInt !== undefined) {
+      dateColumn.setFilterValue({ month: monthAsInt, year: yearAsInt });
     } else {
-      dateColumn.setFilterValue(undefined); // Clear filter if no month/year selected
+      dateColumn.setFilterValue(undefined); 
     }
   }, [selectedMonth, selectedYear, table]);
 

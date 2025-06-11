@@ -2,7 +2,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { format } from 'date-fns';
+import { format, parseISO, getMonth, getYear } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTableColumnHeader } from './data-table/data-table-column-header';
@@ -24,9 +24,27 @@ export const getColumns = (
     header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
     cell: ({ row }) => {
       const date = row.getValue('date') as string;
-      return <div className="min-w-[100px]">{format(new Date(date), 'MMM dd, yyyy')}</div>;
+      try {
+        return <div className="min-w-[100px]">{format(parseISO(date), 'MMM dd, yyyy')}</div>;
+      } catch (e) {
+        return <div className="min-w-[100px]">Invalid Date</div>;
+      }
     },
     enableSorting: true,
+    filterFn: (row, columnId, filterValue: { month?: number; year?: number }) => {
+      if (!filterValue || (filterValue.month === undefined && filterValue.year === undefined)) {
+        return true; // No filter applied or filter is effectively empty
+      }
+      const dateStr = row.getValue(columnId) as string;
+      try {
+        const date = parseISO(dateStr);
+        const monthMatch = filterValue.month !== undefined ? getMonth(date) === filterValue.month : true;
+        const yearMatch = filterValue.year !== undefined ? getYear(date) === filterValue.year : true;
+        return monthMatch && yearMatch;
+      } catch (e) {
+        return false; // Invalid date string in data
+      }
+    },
   },
   {
     accessorKey: 'description',
