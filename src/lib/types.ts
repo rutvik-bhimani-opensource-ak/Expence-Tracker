@@ -1,3 +1,4 @@
+
 export type Category =
   | "Food"
   | "Rent/Mortgage"
@@ -16,17 +17,18 @@ export type Category =
   | "Personal Care"
   | "Subscriptions"
   | "Travel"
+  | "Air Fresheners" // New discreet category
   | "Other";
 
 export const AllCategories: Category[] = [
   "Food", "Rent/Mortgage", "Transportation", "Utilities", "Healthcare",
   "Entertainment", "Shopping", "Salary", "Investments", "Gifts", "Freelance",
-  "Dividends", "Side Hustle", "Education", "Personal Care", "Subscriptions", "Travel", "Other"
+  "Dividends", "Side Hustle", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners", "Other"
 ];
 
 export const ExpenseCategories: Category[] = [
   "Food", "Rent/Mortgage", "Transportation", "Utilities", "Healthcare",
-  "Entertainment", "Shopping", "Gifts", "Education", "Personal Care", "Subscriptions", "Travel", "Other"
+  "Entertainment", "Shopping", "Gifts", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners", "Other"
 ];
 
 export const IncomeCategories: Category[] = [
