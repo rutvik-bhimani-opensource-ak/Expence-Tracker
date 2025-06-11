@@ -288,7 +288,7 @@ export default function ReportsPage() {
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Spending by Category ({selectedPeriodFormatted})</CardTitle>
+            <CardTitle>Spending by Category</CardTitle>
             <CardDescription>Breakdown of your total expenses by category for {selectedPeriodFormatted}.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
