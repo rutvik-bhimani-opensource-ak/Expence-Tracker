@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"; // Removed ChartLegend, ChartLegendContent
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend as RechartsLegend  } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
 import { Badge } from '@/components/ui/badge';
@@ -21,19 +21,19 @@ import type { Category } from '@/lib/types';
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 interface InteractiveLegendProps {
-  payload?: Array<{ value: string; color: string; payload: { name: string } }>;
+  data: Array<{ name: Category; value: number; color: string }>; // Changed from payload to data
   onToggle: (categoryName: string) => void;
   activeCategories: Record<string, boolean>;
   chartConfig: ChartConfig;
 }
 
-const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ payload, onToggle, activeCategories, chartConfig }) => {
-  if (!payload) return null;
+const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ data, onToggle, activeCategories, chartConfig }) => {
+  if (!data || data.length === 0) return null;
 
   return (
     <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 mt-3 text-xs">
-      {payload.map((entry) => {
-        const categoryName = entry.value as Category;
+      {data.map((entry) => { // Iterate over the full data
+        const categoryName = entry.name; // Use entry.name from our data
         const isActive = activeCategories[categoryName];
         const Icon = chartConfig[categoryName]?.icon || getCategoryIcon(categoryName);
 
@@ -48,7 +48,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ payload, onToggle
           >
             <span
               className="w-2.5 h-2.5 rounded-full mr-1.5"
-              style={{ backgroundColor: entry.color }}
+              style={{ backgroundColor: entry.color }} // entry.color is from our data
             />
             {Icon && <Icon className={cn("w-3.5 h-3.5 mr-1", isActive ? "text-foreground" : "text-muted-foreground")} />}
             <span className={cn("select-none", isActive ? "text-foreground" : "text-muted-foreground line-through")}>
@@ -108,14 +108,14 @@ export default function DashboardPage() {
 
   const [activeCategories, setActiveCategories] = useState<Record<string, boolean>>({});
 
-  // Initialize or update activeCategories when spendingChartData changes
   React.useEffect(() => {
     const initialActive: Record<string, boolean> = {};
     spendingChartData.forEach(item => {
-      initialActive[item.name] = activeCategories[item.name] ?? true; // Preserve existing state if item still exists
+      initialActive[item.name] = activeCategories[item.name] ?? true;
     });
     setActiveCategories(initialActive);
-  }, [spendingChartData]); // Only re-run if spendingChartData identity changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spendingChartData]);
 
   const handleLegendToggle = (categoryName: string) => {
     setActiveCategories(prev => ({ ...prev, [categoryName]: !prev[categoryName] }));
@@ -220,7 +220,14 @@ export default function DashboardPage() {
                     ))}
                   </Pie>
                   <RechartsLegend 
-                    content={<InteractiveLegend onToggle={handleLegendToggle} activeCategories={activeCategories} chartConfig={chartConfig} />} 
+                    content={
+                        <InteractiveLegend 
+                            data={spendingChartData} 
+                            onToggle={handleLegendToggle} 
+                            activeCategories={activeCategories} 
+                            chartConfig={chartConfig} 
+                        />
+                    } 
                     verticalAlign="bottom"
                   />
                 </RechartsPieChart>

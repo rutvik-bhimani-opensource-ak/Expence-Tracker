@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"; // Removed ChartLegend, ChartLegendContent
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Legend as RechartsLegend } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
 import { 
@@ -38,19 +38,19 @@ const presets: Preset[] = [
 ];
 
 interface InteractiveLegendProps {
-  payload?: Array<{ value: string; color: string; payload: { name: string } }>;
+  data: Array<{ name: Category; value: number; color: string }>; // Changed from payload to data
   onToggle: (categoryName: string) => void;
   activeCategories: Record<string, boolean>;
   chartConfig: ChartConfig;
 }
 
-const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ payload, onToggle, activeCategories, chartConfig }) => {
-  if (!payload) return null;
+const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ data, onToggle, activeCategories, chartConfig }) => {
+  if (!data || data.length === 0) return null;
 
   return (
     <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 mt-3 text-xs">
-      {payload.map((entry) => {
-        const categoryName = entry.value as Category; // Or entry.payload.name if `value` is not the name
+      {data.map((entry) => { // Iterate over the full data
+        const categoryName = entry.name; // Use entry.name from our data
         const isActive = activeCategories[categoryName];
         const Icon = chartConfig[categoryName]?.icon || getCategoryIcon(categoryName);
 
@@ -65,7 +65,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ payload, onToggle
           >
             <span
               className="w-2.5 h-2.5 rounded-full mr-1.5"
-              style={{ backgroundColor: entry.color }} // entry.color comes from Recharts payload
+              style={{ backgroundColor: entry.color }} // entry.color is from our data
             />
             {Icon && <Icon className={cn("w-3.5 h-3.5 mr-1", isActive ? "text-foreground" : "text-muted-foreground")} />}
             <span className={cn("select-none", isActive ? "text-foreground" : "text-muted-foreground line-through")}>
@@ -176,7 +176,8 @@ export default function ReportsPage() {
        initialActive[item.name] = activeReportCategories[item.name] ?? true;
     });
     setActiveReportCategories(initialActive);
-  }, [categorySpendingData]); // Only re-run if categorySpendingData identity changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categorySpendingData]);
 
   const handleReportLegendToggle = (categoryName: string) => {
     setActiveReportCategories(prev => ({ ...prev, [categoryName]: !prev[categoryName] }));
@@ -190,7 +191,7 @@ export default function ReportsPage() {
     const Icon = getCategoryIcon(item.name as Category);
     acc[item.name] = {
       label: item.name,
-      color: item.color, // Use pre-assigned color
+      color: item.color,
       icon: Icon,
     };
     return acc;
@@ -378,7 +379,14 @@ export default function ReportsPage() {
                     ))}
                   </Pie>
                   <RechartsLegend 
-                    content={<InteractiveLegend onToggle={handleReportLegendToggle} activeCategories={activeReportCategories} chartConfig={categoryChartConfig} />} 
+                    content={
+                        <InteractiveLegend 
+                            data={categorySpendingData} 
+                            onToggle={handleReportLegendToggle} 
+                            activeCategories={activeReportCategories} 
+                            chartConfig={categoryChartConfig} 
+                        />
+                    } 
                     verticalAlign="bottom"
                   />
                 </RechartsPieChart>
@@ -444,7 +452,6 @@ export default function ReportsPage() {
           <CardContent className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
             <li>Income by Category chart (based on selected date range).</li>
             <li>Net Savings/Deficit Over Time line chart (monthly, for selected date range or year).</li>
-            {/* <li>Clickable legends for pie charts to toggle slice visibility. (DONE)</li> */}
           </CardContent>
         </Card>
     </div>
