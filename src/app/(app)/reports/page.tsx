@@ -4,19 +4,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, TooltipProps } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"; // Removed ChartLegend, ChartLegendContent
+import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Legend as RechartsLegend } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
 import { 
   format, getYear, getMonth, startOfMonth, endOfMonth, isWithinInterval, parseISO,
   startOfDay, endOfDay, subDays, subMonths, startOfYear, endOfYear, subYears, 
   eachMonthOfInterval,
-  addYears
 } from 'date-fns';
 import { TrendingUp, BarChart as BarChartIcon, CalendarDays, Info, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCategoryIcon } from '@/lib/category-utils';
-import type { Category, Transaction } from '@/lib/types';
+import type { Category } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
@@ -37,6 +36,47 @@ const presets: Preset[] = [
   { label: "This Year", getRange: () => ({ from: startOfYear(new Date()), to: endOfYear(new Date()) }) },
   { label: "Last Year", getRange: () => ({ from: startOfYear(subYears(new Date(), 1)), to: endOfYear(subYears(new Date(), 1)) }) },
 ];
+
+interface InteractiveLegendProps {
+  payload?: Array<{ value: string; color: string; payload: { name: string } }>;
+  onToggle: (categoryName: string) => void;
+  activeCategories: Record<string, boolean>;
+  chartConfig: ChartConfig;
+}
+
+const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ payload, onToggle, activeCategories, chartConfig }) => {
+  if (!payload) return null;
+
+  return (
+    <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 mt-3 text-xs">
+      {payload.map((entry) => {
+        const categoryName = entry.value as Category; // Or entry.payload.name if `value` is not the name
+        const isActive = activeCategories[categoryName];
+        const Icon = chartConfig[categoryName]?.icon || getCategoryIcon(categoryName);
+
+        return (
+          <div
+            key={`legend-${categoryName}`}
+            onClick={() => onToggle(categoryName)}
+            className={cn(
+              "flex items-center cursor-pointer p-1 rounded-md hover:bg-muted/50",
+              !isActive && "opacity-50"
+            )}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full mr-1.5"
+              style={{ backgroundColor: entry.color }} // entry.color comes from Recharts payload
+            />
+            {Icon && <Icon className={cn("w-3.5 h-3.5 mr-1", isActive ? "text-foreground" : "text-muted-foreground")} />}
+            <span className={cn("select-none", isActive ? "text-foreground" : "text-muted-foreground line-through")}>
+              {categoryName}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 
 export default function ReportsPage() {
@@ -80,7 +120,6 @@ export default function ReportsPage() {
     });
   }, [transactions, dateRange]);
 
-  // Data for Monthly Income vs Expense for System Year
   const monthlyIncomeExpenseDataForSystemYear = useMemo(() => {
     const yearTransactions = transactions.filter(t => getYear(parseISO(t.date)) === systemYear);
     const monthsInYear = eachMonthOfInterval({
@@ -107,34 +146,57 @@ export default function ReportsPage() {
     expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
   };
 
-
-  const categorySpendingData = useMemo(() => {
+  const categorySpendingDataRaw = useMemo(() => {
     const spending: Record<string, number> = {};
     filteredTransactionsByDateRange
       .filter(t => t.type === 'expense')
       .forEach(t => {
         spending[t.category] = (spending[t.category] || 0) + t.amount;
       });
-    return Object.entries(spending)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a,b) => b.value - a.value);
+    return spending;
   }, [filteredTransactionsByDateRange]);
+
+  const categorySpendingData = useMemo(() => Object.entries(categorySpendingDataRaw)
+    .map(([name, value], index) => ({ 
+      name: name as Category, 
+      value,
+      color: CHART_COLORS[index % CHART_COLORS.length] 
+    }))
+    .sort((a,b) => b.value - a.value), [categorySpendingDataRaw]);
   
   const totalSpendingForPeriod = useMemo(() => {
     return categorySpendingData.reduce((sum, item) => sum + item.value, 0);
   }, [categorySpendingData]);
 
-  const categoryChartConfig: ChartConfig = categorySpendingData.reduce((acc, item, index) => {
+  const [activeReportCategories, setActiveReportCategories] = useState<Record<string, boolean>>({});
+  
+  useEffect(() => {
+    const initialActive: Record<string, boolean> = {};
+    categorySpendingData.forEach(item => {
+       initialActive[item.name] = activeReportCategories[item.name] ?? true;
+    });
+    setActiveReportCategories(initialActive);
+  }, [categorySpendingData]); // Only re-run if categorySpendingData identity changes
+
+  const handleReportLegendToggle = (categoryName: string) => {
+    setActiveReportCategories(prev => ({ ...prev, [categoryName]: !prev[categoryName] }));
+  };
+
+  const filteredReportPieData = useMemo(() => 
+    categorySpendingData.filter(item => activeReportCategories[item.name]),
+  [categorySpendingData, activeReportCategories]);
+
+  const categoryChartConfig = useMemo((): ChartConfig => categorySpendingData.reduce((acc, item) => {
     const Icon = getCategoryIcon(item.name as Category);
     acc[item.name] = {
       label: item.name,
-      color: CHART_COLORS[index % CHART_COLORS.length],
+      color: item.color, // Use pre-assigned color
       icon: Icon,
     };
     return acc;
-  }, {} as ChartConfig);
+  }, {} as ChartConfig), [categorySpendingData]);
 
-  // Data for Current vs Previous Year Comparison (using dateRange)
+
   const comparisonChartData = useMemo(() => {
     if (!dateRange?.from || !dateRange.to) return [];
 
@@ -167,8 +229,8 @@ export default function ReportsPage() {
   }, [transactions, dateRange]);
 
   const comparisonChartConfig: ChartConfig = {
-    current: { label: "Current Period", color: "hsl(var(--chart-1))" }, // Blue
-    previous: { label: "Previous Period", color: "hsl(var(--chart-4))" }, // Orange
+    current: { label: "Current Period", color: "hsl(var(--chart-1))" },
+    previous: { label: "Previous Period", color: "hsl(var(--chart-4))" },
   };
 
 
@@ -202,7 +264,7 @@ export default function ReportsPage() {
                     )}
                   />} 
                 />
-                <ChartLegend content={<ChartLegendContent />} />
+                <RechartsLegend />
                 <Bar dataKey="income" name="Income" fill="hsl(var(--chart-3))" radius={4} />
                 <Bar dataKey="expenses" name="Expenses" fill="hsl(var(--destructive))" radius={4} />
               </RechartsBarChart>
@@ -295,7 +357,7 @@ export default function ReportsPage() {
            {categorySpendingData.length > 0 ? (
             <ChartContainer config={categoryChartConfig} className="w-full h-full" chartHeight={376}>
                <ResponsiveContainer>
-                <RechartsPieChart>
+                <RechartsPieChart margin={{ top: 0, right: 0, bottom: 30, left: 0 }}>
                   <ChartTooltip 
                     content={<ChartTooltipContent 
                                 hideLabel 
@@ -310,12 +372,15 @@ export default function ReportsPage() {
                                 }}
                             />}
                    />
-                  <Pie data={categorySpendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
-                    {categorySpendingData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  <Pie data={filteredReportPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
+                    {filteredReportPieData.map((entry) => (
+                      <Cell key={`cell-${entry.name}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <ChartLegend content={<ChartLegendContent nameKey="name" className="text-xs"/>} />
+                  <RechartsLegend 
+                    content={<InteractiveLegend onToggle={handleReportLegendToggle} activeCategories={activeReportCategories} chartConfig={categoryChartConfig} />} 
+                    verticalAlign="bottom"
+                  />
                 </RechartsPieChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -353,7 +418,7 @@ export default function ReportsPage() {
                             )}
                         />} 
                     />
-                    <ChartLegend content={<ChartLegendContent />} />
+                    <RechartsLegend />
                     <Bar dataKey="current" name="Current Period" fill="hsl(var(--chart-1))" radius={4} />
                     <Bar dataKey="previous" name="Previous Period" fill="hsl(var(--chart-4))" radius={4} />
                   </RechartsBarChart>
@@ -379,10 +444,9 @@ export default function ReportsPage() {
           <CardContent className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
             <li>Income by Category chart (based on selected date range).</li>
             <li>Net Savings/Deficit Over Time line chart (monthly, for selected date range or year).</li>
-            <li>Clickable legends for pie charts to toggle slice visibility.</li>
+            {/* <li>Clickable legends for pie charts to toggle slice visibility. (DONE)</li> */}
           </CardContent>
         </Card>
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 
 'use client';
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,16 +8,59 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell  } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"; // Removed ChartLegend, ChartLegendContent
+import { Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend as RechartsLegend  } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { getCategoryIcon } from '@/lib/category-utils';
+import type { Category } from '@/lib/types';
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+
+interface InteractiveLegendProps {
+  payload?: Array<{ value: string; color: string; payload: { name: string } }>;
+  onToggle: (categoryName: string) => void;
+  activeCategories: Record<string, boolean>;
+  chartConfig: ChartConfig;
+}
+
+const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ payload, onToggle, activeCategories, chartConfig }) => {
+  if (!payload) return null;
+
+  return (
+    <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 mt-3 text-xs">
+      {payload.map((entry) => {
+        const categoryName = entry.value as Category;
+        const isActive = activeCategories[categoryName];
+        const Icon = chartConfig[categoryName]?.icon || getCategoryIcon(categoryName);
+
+        return (
+          <div
+            key={`legend-${categoryName}`}
+            onClick={() => onToggle(categoryName)}
+            className={cn(
+              "flex items-center cursor-pointer p-1 rounded-md hover:bg-muted/50",
+              !isActive && "opacity-50"
+            )}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full mr-1.5"
+              style={{ backgroundColor: entry.color }}
+            />
+            {Icon && <Icon className={cn("w-3.5 h-3.5 mr-1", isActive ? "text-foreground" : "text-muted-foreground")} />}
+            <span className={cn("select-none", isActive ? "text-foreground" : "text-muted-foreground line-through")}>
+              {categoryName}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 
 export default function DashboardPage() {
   const { transactions, accounts, budgets, systemMonth, systemYear, getAccountById } = useAppData();
@@ -45,7 +88,7 @@ export default function DashboardPage() {
     .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
 
-  const spendingByCategory = transactions
+  const spendingByCategoryRaw = useMemo(() => transactions
     .filter(t => {
       const tDate = new Date(t.date);
       return t.type === 'expense' && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
@@ -53,21 +96,44 @@ export default function DashboardPage() {
     .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
       return acc;
-    }, {} as Record<string, number>);
+    }, {} as Record<string, number>), [transactions, systemMonth, systemYear]);
 
-  const spendingChartData = Object.entries(spendingByCategory)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a,b) => b.value - a.value); 
+  const spendingChartData = useMemo(() => Object.entries(spendingByCategoryRaw)
+    .map(([name, value], index) => ({ 
+      name: name as Category, 
+      value, 
+      color: CHART_COLORS[index % CHART_COLORS.length] 
+    }))
+    .sort((a,b) => b.value - a.value), [spendingByCategoryRaw]);
 
-  const chartConfig: ChartConfig = spendingChartData.reduce((acc, item, index) => {
-    const Icon = getCategoryIcon(item.name as any);
+  const [activeCategories, setActiveCategories] = useState<Record<string, boolean>>({});
+
+  // Initialize or update activeCategories when spendingChartData changes
+  React.useEffect(() => {
+    const initialActive: Record<string, boolean> = {};
+    spendingChartData.forEach(item => {
+      initialActive[item.name] = activeCategories[item.name] ?? true; // Preserve existing state if item still exists
+    });
+    setActiveCategories(initialActive);
+  }, [spendingChartData]); // Only re-run if spendingChartData identity changes
+
+  const handleLegendToggle = (categoryName: string) => {
+    setActiveCategories(prev => ({ ...prev, [categoryName]: !prev[categoryName] }));
+  };
+
+  const filteredPieData = useMemo(() => 
+    spendingChartData.filter(item => activeCategories[item.name]),
+  [spendingChartData, activeCategories]);
+
+  const chartConfig = useMemo((): ChartConfig => spendingChartData.reduce((acc, item) => {
+    const Icon = getCategoryIcon(item.name);
     acc[item.name] = {
       label: item.name,
-      color: CHART_COLORS[index % CHART_COLORS.length],
+      color: item.color,
       icon: Icon,
     };
     return acc;
-  }, {} as ChartConfig);
+  }, {} as ChartConfig), [spendingChartData]);
   
   return (
     <div className="space-y-6">
@@ -136,7 +202,7 @@ export default function DashboardPage() {
             {spendingChartData.length > 0 ? (
             <ChartContainer config={chartConfig} className="w-full h-full" chartHeight={326}>
               <ResponsiveContainer>
-                <RechartsPieChart>
+                <RechartsPieChart margin={{ top: 0, right: 0, bottom: 30, left: 0 }}>
                   <ChartTooltip 
                     content={<ChartTooltipContent 
                         hideLabel 
@@ -148,12 +214,15 @@ export default function DashboardPage() {
                         )}
                     />} 
                   />
-                  <Pie data={spendingChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
-                     {spendingChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  <Pie data={filteredPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
+                     {filteredPieData.map((entry) => (
+                      <Cell key={`cell-${entry.name}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+                  <RechartsLegend 
+                    content={<InteractiveLegend onToggle={handleLegendToggle} activeCategories={activeCategories} chartConfig={chartConfig} />} 
+                    verticalAlign="bottom"
+                  />
                 </RechartsPieChart>
               </ResponsiveContainer>
             </ChartContainer>
