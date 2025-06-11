@@ -9,9 +9,11 @@ import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, C
 import type { ChartConfig } from "@/components/ui/chart";
 import { 
   format, getYear, getMonth, startOfMonth, endOfMonth, isWithinInterval, parseISO,
-  startOfDay, endOfDay, subDays, subMonths, startOfYear, endOfYear, subYears 
+  startOfDay, endOfDay, subDays, subMonths, startOfYear, endOfYear, subYears, 
+  eachMonthOfInterval,
+  addYears
 } from 'date-fns';
-import { TrendingUp, BarChart as BarChartIcon, CalendarDays, Info } from 'lucide-react';
+import { TrendingUp, BarChart as BarChartIcon, CalendarDays, Info, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCategoryIcon } from '@/lib/category-utils';
 import type { Category, Transaction } from '@/lib/types';
@@ -59,18 +61,18 @@ export default function ReportsPage() {
       }
       return `${format(dateRange.from, 'PPP')} - ${format(dateRange.to, 'PPP')}`;
     }
-    if (dateRange?.from) { // Handle case where only 'from' is selected
+    if (dateRange?.from) { 
         return format(dateRange.from, 'PPP');
     }
     return 'No date range selected';
   }, [dateRange]);
 
-  const filteredTransactions = useMemo(() => {
-    if (!dateRange?.from) return []; // Only 'from' is mandatory to start filtering
+  const filteredTransactionsByDateRange = useMemo(() => {
+    if (!dateRange?.from) return []; 
     
     const adjustedToDate = dateRange.to 
         ? new Date(new Date(dateRange.to).setHours(23, 59, 59, 999)) 
-        : new Date(new Date(dateRange.from).setHours(23, 59, 59, 999)); // If no 'to', use 'from' for single day
+        : new Date(new Date(dateRange.from).setHours(23, 59, 59, 999)); 
 
     return transactions.filter(t => {
       const tDate = parseISO(t.date);
@@ -78,28 +80,37 @@ export default function ReportsPage() {
     });
   }, [transactions, dateRange]);
 
-  const rangeIncomeExpenseData = useMemo(() => {
-    let income = 0;
-    let expenses = 0;
-    filteredTransactions.forEach(t => {
-      if (t.type === 'income') income += t.amount;
-      else expenses += t.amount;
+  // Data for Monthly Income vs Expense for System Year
+  const monthlyIncomeExpenseDataForSystemYear = useMemo(() => {
+    const yearTransactions = transactions.filter(t => getYear(parseISO(t.date)) === systemYear);
+    const monthsInYear = eachMonthOfInterval({
+      start: startOfYear(new Date(systemYear, 0, 1)),
+      end: endOfYear(new Date(systemYear, 0, 1))
     });
-    return [
-      { name: 'Income', value: income },
-      { name: 'Expenses', value: expenses },
-    ];
-  }, [filteredTransactions]);
+
+    return monthsInYear.map(monthDate => {
+      const month = getMonth(monthDate);
+      let income = 0;
+      let expenses = 0;
+      yearTransactions.forEach(t => {
+        if (getMonth(parseISO(t.date)) === month) {
+          if (t.type === 'income') income += t.amount;
+          else expenses += t.amount;
+        }
+      });
+      return { monthName: format(monthDate, 'MMM'), income, expenses };
+    });
+  }, [transactions, systemYear]);
   
-  const incomeExpenseChartConfig: ChartConfig = {
-    value: { label: "Amount" }, 
-    Income: { label: "Income", color: "hsl(var(--chart-3))" }, 
-    Expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
+  const monthlyIncomeExpenseChartConfig: ChartConfig = {
+    income: { label: "Income", color: "hsl(var(--chart-3))" }, 
+    expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
   };
+
 
   const categorySpendingData = useMemo(() => {
     const spending: Record<string, number> = {};
-    filteredTransactions
+    filteredTransactionsByDateRange
       .filter(t => t.type === 'expense')
       .forEach(t => {
         spending[t.category] = (spending[t.category] || 0) + t.amount;
@@ -107,7 +118,7 @@ export default function ReportsPage() {
     return Object.entries(spending)
       .map(([name, value]) => ({ name, value }))
       .sort((a,b) => b.value - a.value);
-  }, [filteredTransactions]);
+  }, [filteredTransactionsByDateRange]);
   
   const totalSpendingForPeriod = useMemo(() => {
     return categorySpendingData.reduce((sum, item) => sum + item.value, 0);
@@ -123,17 +134,95 @@ export default function ReportsPage() {
     return acc;
   }, {} as ChartConfig);
 
+  // Data for Current vs Previous Year Comparison (using dateRange)
+  const comparisonChartData = useMemo(() => {
+    if (!dateRange?.from || !dateRange.to) return [];
+
+    const currentRangeStart = dateRange.from;
+    const currentRangeEnd = new Date(new Date(dateRange.to).setHours(23, 59, 59, 999));
+    
+    const prevRangeStart = subYears(currentRangeStart, 1);
+    const prevRangeEnd = subYears(currentRangeEnd, 1);
+
+    let currentIncome = 0;
+    let currentExpenses = 0;
+    let prevIncome = 0;
+    let prevExpenses = 0;
+
+    transactions.forEach(t => {
+      const tDate = parseISO(t.date);
+      if (isWithinInterval(tDate, { start: currentRangeStart, end: currentRangeEnd })) {
+        if (t.type === 'income') currentIncome += t.amount;
+        else currentExpenses += t.amount;
+      } else if (isWithinInterval(tDate, { start: prevRangeStart, end: prevRangeEnd })) {
+        if (t.type === 'income') prevIncome += t.amount;
+        else prevExpenses += t.amount;
+      }
+    });
+    
+    return [
+      { type: 'Income', current: currentIncome, previous: prevIncome },
+      { type: 'Expenses', current: currentExpenses, previous: prevExpenses },
+    ];
+  }, [transactions, dateRange]);
+
+  const comparisonChartConfig: ChartConfig = {
+    current: { label: "Current Period", color: "hsl(var(--chart-1))" },
+    previous: { label: "Previous Period", color: "hsl(var(--chart-2))" },
+  };
+
 
   return (
     <div className="space-y-6">
       <PageHeader title="Reports & Analytics">
-         <span className="text-sm text-muted-foreground">Select a date range to generate reports.</span>
+         <span className="text-sm text-muted-foreground">Analyze your financial trends.</span>
       </PageHeader>
 
       <Card>
         <CardHeader>
-          <CardTitle>Report Period</CardTitle>
-          <CardDescription>Choose the date range for the reports below. Currently showing: <strong>{selectedPeriodFormatted}</strong></CardDescription>
+          <CardTitle>Monthly Income vs. Expense ({systemYear})</CardTitle>
+          <CardDescription>Overview of income and expenses for each month of {systemYear}.</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[400px]">
+        {monthlyIncomeExpenseDataForSystemYear.some(d => d.income > 0 || d.expenses > 0) ? (
+          <ChartContainer config={monthlyIncomeExpenseChartConfig} className="w-full h-full" chartHeight={376}>
+            <ResponsiveContainer>
+              <RechartsBarChart data={monthlyIncomeExpenseDataForSystemYear}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="monthName" tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(value) => `₹${value}`} />
+                <ChartTooltip 
+                  cursor={false}
+                  content={<ChartTooltipContent 
+                    indicator="dot" 
+                    formatter={(value, name, props) => (
+                        <div className="flex items-center">
+                        <span>{props.payload?.monthName} - {name}: ₹{Number(value).toFixed(2)}</span>
+                        </div>
+                    )}
+                  />} 
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar dataKey="income" name="Income" fill="hsl(var(--chart-3))" radius={4} />
+                <Bar dataKey="expenses" name="Expenses" fill="hsl(var(--destructive))" radius={4} />
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+               <div className="text-center text-muted-foreground">
+                  <LineChart className="mx-auto h-12 w-12 mb-2"/>
+                  No income or expense data for {systemYear}.
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Custom Date Range Reports</CardTitle>
+          <CardDescription>Choose a date range for the reports below. Currently showing: <strong>{selectedPeriodFormatted}</strong></CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -199,49 +288,6 @@ export default function ReportsPage() {
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Income vs. Expense ({selectedPeriodFormatted})</CardTitle>
-            <CardDescription>Total income and expenses for the selected period.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[400px]">
-          {rangeIncomeExpenseData.some(d => d.value > 0) ? (
-            <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full" chartHeight={376}>
-              <ResponsiveContainer>
-                <RechartsBarChart data={rangeIncomeExpenseData} layout="vertical">
-                  <CartesianGrid horizontal={false} />
-                  <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} />
-                  <XAxis type="number" tickFormatter={(value) => `₹${value}`} />
-                  <ChartTooltip 
-                    cursor={false}
-                    content={<ChartTooltipContent 
-                        indicator="dot"
-                        formatter={(value, name) => (
-                          <div className="flex items-center">
-                            <span>{name}: ₹{Number(value).toFixed(2)}</span>
-                          </div>
-                        )} 
-                    />} 
-                  />
-                  <Bar dataKey="value" name="Amount" radius={4}>
-                     {rangeIncomeExpenseData.map((entry) => (
-                      <Cell key={`cell-${entry.name}`} fill={entry.name === 'Income' ? "hsl(var(--chart-3))" : "hsl(var(--destructive))"} />
-                    ))}
-                  </Bar>
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                 <div className="text-center text-muted-foreground">
-                    <TrendingUp className="mx-auto h-12 w-12 mb-2"/>
-                    No income or expense data for {selectedPeriodFormatted}.
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Spending by Category ({selectedPeriodFormatted})</CardTitle>
             <CardDescription>Breakdown of your total expenses by category for {selectedPeriodFormatted}.</CardDescription>
           </CardHeader>
@@ -283,15 +329,56 @@ export default function ReportsPage() {
             )}
           </CardContent>
         </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Current vs. Previous Year Comparison</CardTitle>
+            <CardDescription>Income & Expenses for {selectedPeriodFormatted} vs. same period last year.</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[400px]">
+            {comparisonChartData.some(d => d.current > 0 || d.previous > 0) ? (
+              <ChartContainer config={comparisonChartConfig} className="w-full h-full" chartHeight={376}>
+                <ResponsiveContainer>
+                  <RechartsBarChart data={comparisonChartData} layout="vertical">
+                    <CartesianGrid horizontal={false} />
+                    <YAxis dataKey="type" type="category" tickLine={false} axisLine={false} width={80}/>
+                    <XAxis type="number" tickFormatter={(value) => `₹${value}`} />
+                    <ChartTooltip 
+                        content={<ChartTooltipContent 
+                            indicator="dot" 
+                            formatter={(value, name, props) => (
+                              <div className="flex items-center">
+                                <span>{props.payload?.type} - {name}: ₹{Number(value).toFixed(2)}</span>
+                              </div>
+                            )}
+                        />} 
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="current" name="Current Period" fill="hsl(var(--chart-1))" radius={4} />
+                    <Bar dataKey="previous" name="Previous Period" fill="hsl(var(--chart-2))" radius={4} />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                  <TrendingUp className="mx-auto h-12 w-12 mb-2"/>
+                  No data for comparison or date range not fully selected.
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
        <Card>
           <CardHeader>
             <CardTitle className="flex items-center"><Info className="mr-2 h-5 w-5 text-primary"/>Future Enhancements</CardTitle>
             <CardDescription>Upcoming features for this reports page:</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-            <li>Income by Category chart.</li>
-            <li>Net Savings/Deficit Over Time chart.</li>
+            <li>Income by Category chart (based on selected date range).</li>
+            <li>Net Savings/Deficit Over Time line chart (monthly, for selected date range or year).</li>
             <li>Clickable legends for pie charts to toggle slice visibility.</li>
           </CardContent>
         </Card>
