@@ -1,100 +1,94 @@
 
 'use client';
-import React from 'react'; // Added React import
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Bar, BarChart as RechartsBarChart, PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, TooltipProps } from 'recharts';
 import type { ChartConfig } from "@/components/ui/chart";
-import { useMemo, useState, useEffect } from 'react';
-import { format, getYear, getMonth } from 'date-fns';
-import { TrendingUp, BarChart as BarChartIcon, CalendarDays } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { format, getYear, getMonth, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { TrendingUp, BarChart as BarChartIcon, CalendarDays, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCategoryIcon } from '@/lib/category-utils';
-import type { Category } from '@/lib/types';
+import type { Category, Transaction } from '@/lib/types';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import type { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
-
-const months = Array.from({ length: 12 }, (_, i) => ({
-  value: i,
-  label: format(new Date(2000, i), 'MMMM'),
-}));
 
 export default function ReportsPage() {
   const { transactions, systemMonth, systemYear } = useAppData();
 
-  const [selectedMonth, setSelectedMonth] = useState<number>(systemMonth);
-  const [selectedYear, setSelectedYear] = useState<number>(systemYear);
-  const [inputYear, setInputYear] = useState<string>(systemYear.toString());
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date(systemYear, systemMonth)),
+    to: endOfMonth(new Date(systemYear, systemMonth)),
+  });
 
   useEffect(() => {
-    setSelectedMonth(systemMonth);
-    setSelectedYear(systemYear);
-    setInputYear(systemYear.toString());
+    setDateRange({
+        from: startOfMonth(new Date(systemYear, systemMonth)),
+        to: endOfMonth(new Date(systemYear, systemMonth)),
+    });
   }, [systemMonth, systemYear]);
   
-  const handleYearChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputYear(e.target.value);
-  };
-
-  const handleSetReportDate = () => {
-    const yearNum = parseInt(inputYear);
-    if (!isNaN(yearNum) && yearNum >= 1900 && yearNum <= 2100) {
-      setSelectedYear(yearNum);
-    } else {
-      // Optionally, show a toast or error for invalid year
-      setInputYear(selectedYear.toString()); // Reset to valid year
-    }
-  };
-
-  const selectedPeriodFormatted = format(new Date(selectedYear, selectedMonth), 'MMMM yyyy');
-
-  const monthlyIncomeExpenseData = useMemo(() => {
-    const dataByMonth: Record<string, { month: string; monthNumeric: number; income: number; expenses: number }> = {};
-    const targetYearTransactions = transactions.filter(t => getYear(new Date(t.date)) === selectedYear);
-
-    for (let i = 0; i < 12; i++) {
-      const monthName = format(new Date(selectedYear, i), 'MMM');
-      dataByMonth[monthName] = { month: monthName, monthNumeric: i, income: 0, expenses: 0 };
-    }
-
-    targetYearTransactions.forEach(t => {
-      const date = new Date(t.date);
-      const monthName = format(date, 'MMM');
-      if (dataByMonth[monthName]) {
-        if (t.type === 'income') {
-          dataByMonth[monthName].income += t.amount;
-        } else {
-          dataByMonth[monthName].expenses += t.amount;
-        }
+  const selectedPeriodFormatted = useMemo(() => {
+    if (dateRange?.from && dateRange?.to) {
+      if (format(dateRange.from, 'yyyy-MM-dd') === format(dateRange.to, 'yyyy-MM-dd')) {
+        return format(dateRange.from, 'PPP');
       }
+      return `${format(dateRange.from, 'PPP')} - ${format(dateRange.to, 'PPP')}`;
+    }
+    return 'No date range selected';
+  }, [dateRange]);
+
+  const filteredTransactions = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return [];
+    const adjustedToDate = new Date(dateRange.to);
+    adjustedToDate.setHours(23, 59, 59, 999); // Ensure 'to' date includes the whole day
+
+    return transactions.filter(t => {
+      const tDate = parseISO(t.date);
+      return isWithinInterval(tDate, { start: dateRange.from as Date, end: adjustedToDate });
     });
-    return Object.values(dataByMonth).sort((a,b) => a.monthNumeric - b.monthNumeric);
-  }, [transactions, selectedYear]);
+  }, [transactions, dateRange]);
+
+  const rangeIncomeExpenseData = useMemo(() => {
+    let income = 0;
+    let expenses = 0;
+    filteredTransactions.forEach(t => {
+      if (t.type === 'income') income += t.amount;
+      else expenses += t.amount;
+    });
+    return [
+      { name: 'Income', value: income },
+      { name: 'Expenses', value: expenses },
+    ];
+  }, [filteredTransactions]);
   
   const incomeExpenseChartConfig: ChartConfig = {
-    income: { label: "Income", color: "hsl(var(--chart-3))" }, 
-    expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
+    value: { label: "Amount" }, // Generic label
+    Income: { label: "Income", color: "hsl(var(--chart-3))" }, 
+    Expenses: { label: "Expenses", color: "hsl(var(--destructive))" }, 
   };
 
   const categorySpendingData = useMemo(() => {
     const spending: Record<string, number> = {};
-    transactions
-      .filter(t => {
-        const tDate = new Date(t.date);
-        return t.type === 'expense' && getMonth(tDate) === selectedMonth && getYear(tDate) === selectedYear;
-      })
+    filteredTransactions
+      .filter(t => t.type === 'expense')
       .forEach(t => {
         spending[t.category] = (spending[t.category] || 0) + t.amount;
       });
     return Object.entries(spending)
       .map(([name, value]) => ({ name, value }))
       .sort((a,b) => b.value - a.value);
-  }, [transactions, selectedMonth, selectedYear]);
+  }, [filteredTransactions]);
+  
+  const totalSpendingForPeriod = useMemo(() => {
+    return categorySpendingData.reduce((sum, item) => sum + item.value, 0);
+  }, [categorySpendingData]);
 
   const categoryChartConfig: ChartConfig = categorySpendingData.reduce((acc, item, index) => {
     const Icon = getCategoryIcon(item.name as Category);
@@ -110,65 +104,84 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Reports & Analytics">
-         <span className="text-sm text-muted-foreground">Select month and year to generate reports.</span>
+         <span className="text-sm text-muted-foreground">Select a date range to generate reports.</span>
       </PageHeader>
 
       <Card>
         <CardHeader>
           <CardTitle>Report Period</CardTitle>
-          <CardDescription>Choose the month and year for the reports below.</CardDescription>
+          <CardDescription>Choose the date range for the reports below. Currently showing: <strong>{selectedPeriodFormatted}</strong></CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-          <div className="grid gap-2 w-full sm:w-auto">
-            <Label htmlFor="report-month">Month</Label>
-            <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
-              <SelectTrigger id="report-month" className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Select month" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2 w-full sm:w-auto">
-            <Label htmlFor="report-year">Year</Label>
-            <Input 
-              id="report-year" 
-              type="number" 
-              value={inputYear}
-              onChange={handleYearChange}
-              placeholder="YYYY"
-              className="w-full sm:w-[100px]"
-            />
-          </div>
-          <Button onClick={handleSetReportDate} className="w-full sm:w-auto">
-            <CalendarDays className="mr-2 h-4 w-4" /> Generate Report
-          </Button>
+        <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-[300px] justify-start text-left font-normal",
+                    !dateRange && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} -{" "}
+                        {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick a date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
         </CardContent>
       </Card>
 
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Income vs. Expense ({selectedYear})</CardTitle>
-            <CardDescription>Comparison of your income and expenses for each month of {selectedYear}.</CardDescription>
+            <CardTitle>Income vs. Expense ({selectedPeriodFormatted})</CardTitle>
+            <CardDescription>Total income and expenses for the selected period.</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px]">
-          {monthlyIncomeExpenseData.some(d => d.income > 0 || d.expenses > 0) ? (
+          {rangeIncomeExpenseData.some(d => d.value > 0) ? (
             <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full" chartHeight={376}>
               <ResponsiveContainer>
-                <RechartsBarChart data={monthlyIncomeExpenseData}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="month" tickLine={false} tickMargin={10} axisLine={false} />
-                  <YAxis tickFormatter={(value) => `₹${value}`} />
+                <RechartsBarChart data={rangeIncomeExpenseData} layout="vertical">
+                  <CartesianGrid horizontal={false} />
+                  <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} />
+                  <XAxis type="number" tickFormatter={(value) => `₹${value}`} />
                   <ChartTooltip 
+                    cursor={false}
                     content={<ChartTooltipContent 
-                        formatter={(value, name) => `₹${Number(value).toFixed(2)}`} 
+                        indicator="dot"
+                        formatter={(value, name) => (
+                          <div className="flex items-center">
+                            <span>{name}: ₹{Number(value).toFixed(2)}</span>
+                          </div>
+                        )} 
                     />} 
                   />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Bar dataKey="income" fill="var(--color-income)" radius={4} />
-                  <Bar dataKey="expenses" fill="var(--color-expenses)" radius={4} />
+                  <Bar dataKey="value" name="Amount" radius={4}>
+                     {rangeIncomeExpenseData.map((entry) => (
+                      <Cell key={`cell-${entry.name}`} fill={entry.name === 'Income' ? "hsl(var(--chart-3))" : "hsl(var(--destructive))"} />
+                    ))}
+                  </Bar>
                 </RechartsBarChart>
               </ResponsiveContainer>
             </ChartContainer>
@@ -176,7 +189,7 @@ export default function ReportsPage() {
               <div className="flex items-center justify-center h-full">
                  <div className="text-center text-muted-foreground">
                     <TrendingUp className="mx-auto h-12 w-12 mb-2"/>
-                    No income/expense data for {selectedYear}.
+                    No income or expense data for {selectedPeriodFormatted}.
                 </div>
               </div>
             )}
@@ -196,12 +209,15 @@ export default function ReportsPage() {
                   <ChartTooltip 
                     content={<ChartTooltipContent 
                                 hideLabel 
-                                formatter={(value, name, props) => (
-                                  <div className="flex items-center">
-                                    {categoryChartConfig[props.name as string]?.icon && React.createElement(categoryChartConfig[props.name as string].icon as any, { className: "mr-1.5 h-4 w-4 text-muted-foreground"})}
-                                    <span>{props.name}: ₹{Number(value).toFixed(2)}</span>
-                                  </div>
-                                )}
+                                formatter={(value, name, props) => {
+                                  const percentage = totalSpendingForPeriod > 0 ? (Number(value) / totalSpendingForPeriod) * 100 : 0;
+                                  return (
+                                    <div className="flex items-center">
+                                      {categoryChartConfig[props.name as string]?.icon && React.createElement(categoryChartConfig[props.name as string].icon as any, { className: "mr-1.5 h-4 w-4 text-muted-foreground"})}
+                                      <span>{props.name}: ₹{Number(value).toFixed(2)} ({percentage.toFixed(1)}%)</span>
+                                    </div>
+                                  );
+                                }}
                             />}
                    />
                   <Pie data={categorySpendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%">
@@ -224,6 +240,18 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
+       <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center"><Info className="mr-2 h-5 w-5 text-primary"/>Future Enhancements</CardTitle>
+            <CardDescription>Upcoming features for this reports page:</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
+            <li>Income by Category chart.</li>
+            <li>Net Savings/Deficit Over Time chart.</li>
+            <li>Clickable legends for pie charts to toggle slice visibility.</li>
+          </CardContent>
+        </Card>
     </div>
   );
 }
+
