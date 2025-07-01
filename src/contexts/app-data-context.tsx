@@ -60,23 +60,42 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [systemYear, setSystemYearState] = useState<number>(new Date().getFullYear());
   const [isDataLoading, setIsDataLoading] = useState(true);
 
-  // Fetch initial settings (systemMonth, systemYear)
+  // Auto-update system date on app load if the real month/year has changed.
   useEffect(() => {
     const settingsDocRef = doc(db, APP_SETTINGS_DOC, 'current');
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
     const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setSystemMonthState(data.systemMonth ?? new Date().getMonth());
-        setSystemYearState(data.systemYear ?? new Date().getFullYear());
+        const storedMonth = data.systemMonth;
+        const storedYear = data.systemYear;
+
+        // Check if the stored date matches the actual current date
+        if (storedMonth !== currentMonth || storedYear !== currentYear) {
+            // If not, update it in Firestore. The onSnapshot listener will then
+            // receive this new value and update the state correctly.
+            updateDoc(settingsDocRef, { systemMonth: currentMonth, systemYear: currentYear })
+              .catch(err => console.error("Failed to auto-update system date:", err));
+        }
+
+        // Set the state from the (potentially updated) Firestore data
+        setSystemMonthState(data.systemMonth ?? currentMonth);
+        setSystemYearState(data.systemYear ?? currentYear);
+
       } else {
+        // Doc doesn't exist, so create it with the current month and year.
+        // onSnapshot will trigger again once it's created.
         setDoc(settingsDocRef, { 
-          systemMonth: new Date().getMonth(), 
-          systemYear: new Date().getFullYear() 
-        });
+          systemMonth: currentMonth, 
+          systemYear: currentYear 
+        }).catch(err => console.error("Failed to create initial system date:", err));
       }
     }, (error) => console.error("Error fetching app settings:", error));
+
     return () => unsubscribe();
-  }, []);
+  }, []); // Empty dependency array ensures this check runs once on mount.
   
   // Accounts listener for 'primary' and 'cash'
   useEffect(() => {
