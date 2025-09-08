@@ -5,7 +5,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet } from 'lucide-react';
+import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet, Percent, PiggyBank, Target as TargetIcon, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -70,23 +70,34 @@ export default function DashboardPage() {
   const primaryAccount = getAccountById('primary');
   const cashAccount = getAccountById('cash');
 
-  const totalIncome = transactions
+  const totalIncome = useMemo(() => transactions
     .filter(t => {
       const tDate = new Date(t.date);
       return t.type === 'income' && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
     })
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + t.amount, 0), [transactions, systemMonth, systemYear]);
 
-  const totalExpenses = transactions
+  const totalExpenses = useMemo(() => transactions
     .filter(t => {
       const tDate = new Date(t.date);
       return t.type === 'expense' && tDate.getMonth() === systemMonth && tDate.getFullYear() === systemYear;
     })
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + t.amount, 0), [transactions, systemMonth, systemYear]);
   
-  const recentTransactions = [...transactions]
+  const recentTransactions = useMemo(() => [...transactions]
     .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .slice(0, 5), [transactions]);
+
+  // Financial Health Indicators
+  const savingsRate = useMemo(() => {
+    if (totalIncome === 0) return 0;
+    return ((totalIncome - totalExpenses) / totalIncome) * 100;
+  }, [totalIncome, totalExpenses]);
+
+  const netWorth = useMemo(() => {
+    return accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  }, [accounts]);
+
 
   const spendingByCategoryRaw = useMemo(() => transactions
     .filter(t => {
@@ -191,6 +202,53 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+       <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center"><Activity className="mr-2 h-5 w-5"/>Financial Health Indicators</CardTitle>
+            <CardDescription>Key metrics for your financial well-being.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="border rounded-lg p-4 flex flex-col justify-between">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Net Worth</CardTitle>
+                    <PiggyBank className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                    <div className="text-2xl font-bold">₹{netWorth.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">Sum of all account balances</p>
+                </div>
+            </div>
+            <div className="border rounded-lg p-4 flex flex-col justify-between">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Savings Rate ({currentMonthName})</CardTitle>
+                    <Percent className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                    <div className={cn("text-2xl font-bold", savingsRate < 0 ? 'text-destructive' : 'text-[hsl(var(--chart-3))]')}>{savingsRate.toFixed(1)}%</div>
+                    <p className="text-xs text-muted-foreground">Healthy range: 20-30%</p>
+                </div>
+            </div>
+             <div className="border rounded-lg p-4 flex flex-col justify-between bg-muted/40">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Investment &amp; FI Ratio</CardTitle>
+                    <TargetIcon className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                    <p className="text-xs text-muted-foreground">Future Enhancement: Track investment growth and progress towards Financial Independence.</p>
+                </div>
+            </div>
+             <div className="border rounded-lg p-4 flex flex-col justify-between bg-muted/40">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Debt-to-Income Ratio</CardTitle>
+                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                    <p className="text-xs text-muted-foreground">Future Enhancement: Track total debt vs. income after adding loan/debt tracking features.</p>
+                </div>
+            </div>
+        </CardContent>
+       </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
