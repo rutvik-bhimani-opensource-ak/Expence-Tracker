@@ -4,7 +4,7 @@ import type { Category } from '@/lib/types';
 import {
   Utensils, Home, Car, Lightbulb, Stethoscope, Ticket, ShoppingBag, Landmark,
   TrendingUp, Gift, Laptop, PieChart as PieChartIconLucide, Zap, GraduationCap, User,
-  Repeat, Plane, HelpCircle, Wind, // Added Wind icon
+  Repeat, Plane, HelpCircle, Wind, LineChart, CandlestickChart,
  type LucideIcon
 } from 'lucide-react';
 
@@ -26,7 +26,9 @@ export const categoryIconsMapping: Record<Category, LucideIcon> = {
   "Personal Care": User,
   "Subscriptions": Repeat,
   "Travel": Plane,
-  "Air Fresheners": Wind, // New discreet category with Wind icon
+  "Air Fresheners": Wind,
+  "FD Returns": LineChart,
+  "Investment Returns": CandlestickChart,
   "Other": HelpCircle,
 };
 

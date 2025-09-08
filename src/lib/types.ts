@@ -17,22 +17,27 @@ export type Category =
   | "Personal Care"
   | "Subscriptions"
   | "Travel"
-  | "Air Fresheners" // New discreet category
+  | "Air Fresheners"
+  | "FD Returns"
+  | "Investment Returns"
   | "Other";
 
 export const AllCategories: Category[] = [
   "Food", "Rent/Mortgage", "Transportation", "Utilities", "Healthcare",
   "Entertainment", "Shopping", "Salary", "Investments", "Gifts", "Freelance",
-  "Dividends", "Side Hustle", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners", "Other"
+  "Dividends", "Side Hustle", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners",
+  "FD Returns", "Investment Returns", "Other"
 ];
 
 export const ExpenseCategories: Category[] = [
   "Food", "Rent/Mortgage", "Transportation", "Utilities", "Healthcare",
-  "Entertainment", "Shopping", "Gifts", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners", "Other"
+  "Entertainment", "Shopping", "Gifts", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners",
+  "Investments", "Other"
 ];
 
 export const IncomeCategories: Category[] = [
-  "Salary", "Investments", "Freelance", "Dividends", "Side Hustle", "Gifts", "Other"
+  "Salary", "Freelance", "Dividends", "Side Hustle", "Gifts",
+  "FD Returns", "Investment Returns", "Other"
 ];
 
 export interface Transaction {
