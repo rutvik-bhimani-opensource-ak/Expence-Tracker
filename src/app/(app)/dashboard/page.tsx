@@ -5,7 +5,7 @@ import { useAppData } from '@/contexts/app-data-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet, Percent, PiggyBank, Target as TargetIcon, Activity } from 'lucide-react';
+import { BarChart, DollarSign, TrendingDown, TrendingUp, ListPlus, Landmark, Wallet, Percent, PiggyBank, Target as TargetIcon, Activity, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { getCategoryIcon } from '@/lib/category-utils';
 import type { Category } from '@/lib/types';
+import { Progress } from '@/components/ui/progress';
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
@@ -63,7 +64,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({ data, onToggle, a
 
 
 export default function DashboardPage() {
-  const { transactions, accounts, budgets, systemMonth, systemYear, getAccountById } = useAppData();
+  const { transactions, accounts, budgets, creditCards, systemMonth, systemYear, getAccountById } = useAppData();
 
   const currentMonthName = format(new Date(systemYear, systemMonth), 'MMMM yyyy');
 
@@ -203,6 +204,38 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+       {creditCards.length > 0 && (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center"><CreditCard className="mr-2 h-5 w-5"/>Credit Card Balances</CardTitle>
+                <CardDescription>Your credit card spending for {currentMonthName}.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {creditCards.map(card => {
+                    const remaining = card.limit - card.spent;
+                    const progress = card.limit > 0 ? (card.spent / card.limit) * 100 : 0;
+                    return (
+                        <div key={card.id} className="border rounded-lg p-4 flex flex-col justify-between">
+                            <CardTitle className="text-base font-medium flex items-center justify-between">
+                                <span>{card.name}</span>
+                                <span className="text-sm text-muted-foreground">Limit: ₹{card.limit.toFixed(2)}</span>
+                            </CardTitle>
+                            <div className="mt-2 space-y-2">
+                                <Progress value={Math.min(progress, 100)} className={progress > 90 ? '[&>div]:bg-destructive' : '[&>div]:bg-primary'} />
+                                <div className="flex justify-between text-sm">
+                                    <span className="font-medium text-destructive">Spent: ₹{card.spent.toFixed(2)}</span>
+                                    <span className={cn("font-medium", remaining < 0 ? 'text-destructive' : 'text-muted-foreground')}>
+                                      Available: ₹{remaining.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                })}
+            </CardContent>
+        </Card>
+       )}
+
        <Card>
         <CardHeader>
             <CardTitle className="flex items-center"><Activity className="mr-2 h-5 w-5"/>Financial Health Indicators</CardTitle>
@@ -323,7 +356,9 @@ export default function DashboardPage() {
                 {recentTransactions.map((transaction) => {
                   const CategoryIcon = getCategoryIcon(transaction.category);
                   const accountUsed = getAccountById(transaction.accountId);
-                  const AccountIcon = transaction.accountId === 'primary' ? Landmark : Wallet;
+                  const isCreditCard = !['primary', 'cash'].includes(transaction.accountId);
+                  const AccountIcon = isCreditCard ? CreditCard : (transaction.accountId === 'primary' ? Landmark : Wallet);
+                  
                   return (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>

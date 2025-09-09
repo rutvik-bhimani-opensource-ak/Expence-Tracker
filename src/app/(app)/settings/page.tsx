@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useForm as useFormCreditCard } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
-import { Download, RotateCcw, CalendarCog, Loader2, FileSpreadsheet, Landmark, Wallet } from 'lucide-react';
+import { Download, RotateCcw, CalendarCog, Loader2, FileSpreadsheet, Landmark, Wallet, PlusCircle, Trash2, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Transaction, Account } from '@/lib/types';
 
@@ -31,9 +31,17 @@ const systemDateFormSchema = z.object({
 });
 type SystemDateFormValues = z.infer<typeof systemDateFormSchema>;
 
+const creditCardFormSchema = z.object({
+  name: z.string().min(1, "Card name is required"),
+  limit: z.coerce.number().positive("Credit limit must be a positive number"),
+});
+type CreditCardFormValues = z.infer<typeof creditCardFormSchema>;
+
+
 export default function SettingsPage() {
   const { 
     accounts, updateAccountName, updateAccountBalance,
+    creditCards, addCreditCard, deleteCreditCard,
     getAllData, resetAllData,
     systemMonth, systemYear, setSystemDate,
     isDataLoading, getAccountById
@@ -60,6 +68,14 @@ export default function SettingsPage() {
     defaultValues: {
       month: systemMonth,
       year: systemYear,
+    }
+  });
+  
+  const creditCardForm = useFormCreditCard<CreditCardFormValues>({
+    resolver: zodResolver(creditCardFormSchema),
+    defaultValues: {
+        name: "",
+        limit: undefined,
     }
   });
 
@@ -93,6 +109,17 @@ export default function SettingsPage() {
       await updateAccountBalance(data.accountId, data.currentBalance);
     }
     toast({ title: "Account Updated", description: `${data.accountName} settings saved.` });
+  };
+  
+  const onCreditCardSubmit = async (data: CreditCardFormValues) => {
+    try {
+        await addCreditCard(data);
+        toast({ title: "Credit Card Added", description: `${data.name} has been added.` });
+        creditCardForm.reset();
+    } catch (error) {
+        console.error("Failed to add credit card:", error);
+        toast({ title: "Error", description: "Failed to add credit card.", variant: "destructive"});
+    }
   };
 
   const onSystemDateSubmit = async (data: SystemDateFormValues) => {
@@ -268,6 +295,81 @@ export default function SettingsPage() {
           </CardFooter>
         </form>
       </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Credit Card Management</CardTitle>
+          <CardDescription>Add and manage your credit cards here.</CardDescription>
+        </CardHeader>
+        <form onSubmit={creditCardForm.handleSubmit(onCreditCardSubmit)}>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <Label htmlFor="creditCardName">Card Name</Label>
+                        <Input id="creditCardName" {...creditCardForm.register("name")} placeholder="e.g., HDFC Millennia" />
+                        {creditCardForm.formState.errors.name && <p className="text-sm text-destructive">{creditCardForm.formState.errors.name.message}</p>}
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="creditCardLimit">Credit Limit (₹)</Label>
+                        <Input id="creditCardLimit" type="number" step="1000" {...creditCardForm.register("limit")} placeholder="e.g., 150000" />
+                        {creditCardForm.formState.errors.limit && <p className="text-sm text-destructive">{creditCardForm.formState.errors.limit.message}</p>}
+                    </div>
+                </div>
+            </CardContent>
+            <CardFooter>
+                <Button type="submit" disabled={creditCardForm.formState.isSubmitting}>
+                    {creditCardForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Credit Card
+                </Button>
+            </CardFooter>
+        </form>
+
+        {creditCards.length > 0 && (
+            <>
+                <CardHeader className="pt-0">
+                    <CardTitle className="text-lg">Your Credit Cards</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    {creditCards.map(card => (
+                        <div key={card.id} className="flex items-center justify-between p-3 rounded-md border bg-muted/20">
+                            <div className="flex items-center">
+                                <CreditCard className="mr-3 h-5 w-5 text-muted-foreground" />
+                                <div>
+                                    <p className="font-medium">{card.name}</p>
+                                    <p className="text-sm text-muted-foreground">Limit: ₹{card.limit.toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    This will permanently delete the <strong>{card.name}</strong> card and may affect related transactions. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                    onClick={() => deleteCreditCard(card.id)}
+                                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                    >
+                                    Delete
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    ))}
+                </CardContent>
+            </>
+        )}
+      </Card>
+
 
       <Card>
         <CardHeader>
@@ -338,7 +440,7 @@ export default function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all your transactions and budgets. Account balances will be reset to ₹0.00.
+                  This action cannot be undone. This will permanently delete all your transactions, budgets and credit cards. Account balances will be reset to ₹0.00.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -48,7 +48,7 @@ export interface Transaction {
   category: Category;
   type: 'income' | 'expense';
   vendor?: string;
-  accountId: 'primary' | 'cash'; // Identifies the source/destination account
+  accountId: string; // Can be 'primary', 'cash', or a credit card ID
 }
 
 export interface BudgetGoal {
@@ -62,4 +62,10 @@ export interface Account {
   id: 'primary' | 'cash'; // Fixed IDs for Main and Cash accounts
   name: string;
   balance: number;
+}
+
+export interface CreditCard {
+    id: string;
+    name: string;
+    limit: number;
 }

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { DataTableColumnHeader } from './data-table/data-table-column-header';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Edit, Trash2, Landmark, Wallet } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, Landmark, Wallet, CreditCard } from 'lucide-react';
 import type { Transaction, Account } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getCategoryIcon } from '@/lib/category-utils';
@@ -76,7 +76,10 @@ export const getColumns = (
     cell: ({ row }) => {
       const accountId = row.getValue('accountId') as Transaction['accountId'];
       const accountUsed = getAccountById(accountId);
-      const AccountIcon = accountId === 'primary' ? Landmark : Wallet;
+      
+      const isCreditCard = !['primary', 'cash'].includes(accountId);
+      const AccountIcon = isCreditCard ? CreditCard : (accountId === 'primary' ? Landmark : Wallet);
+
       return (
         <Badge variant="outline" className="flex items-center w-fit text-xs min-w-[100px]">
           <AccountIcon className="mr-1.5 h-3 w-3" />

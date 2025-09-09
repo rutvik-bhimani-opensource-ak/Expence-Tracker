@@ -2,7 +2,7 @@
 'use client';
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Transaction, BudgetGoal, Account, Category } from '@/lib/types';
+import type { Transaction, BudgetGoal, Account, Category, CreditCard } from '@/lib/types';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -30,6 +30,9 @@ interface AppDataContextType {
   updateBudget: (budget: BudgetGoal) => Promise<void>;
   deleteBudget: (budgetId: string) => Promise<void>;
   accounts: Account[]; // Will hold 'primary' and 'cash' accounts
+  creditCards: (CreditCard & { spent: number })[];
+  addCreditCard: (card: Omit<CreditCard, 'id'>) => Promise<void>;
+  deleteCreditCard: (cardId: string) => Promise<void>;
   updateAccountBalance: (accountId: 'primary' | 'cash', newBalance: number) => Promise<void>;
   updateAccountName: (accountId: 'primary' | 'cash', newName: string) => Promise<void>;
   getCategorySpentAmount: (category: Category, month: number, year: number) => number;
@@ -37,9 +40,9 @@ interface AppDataContextType {
   systemYear: number;
   setSystemDate: (month: number, year: number) => Promise<void>;
   resetAllData: () => Promise<void>;
-  getAllData: () => Promise<{ transactions: Transaction[]; budgets: BudgetGoal[]; accounts: Account[], systemMonth: number, systemYear: number }>;
+  getAllData: () => Promise<{ transactions: Transaction[]; budgets: BudgetGoal[]; accounts: Account[], creditCards: CreditCard[], systemMonth: number, systemYear: number }>;
   isDataLoading: boolean;
-  getAccountById: (accountId: 'primary' | 'cash') => Account | undefined;
+  getAccountById: (accountId: string) => Account | CreditCard | undefined;
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
@@ -47,6 +50,7 @@ const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 const TRANSACTIONS_COLLECTION = 'transactions';
 const BUDGETS_COLLECTION = 'budgets';
 const ACCOUNTS_COLLECTION = 'accounts';
+const CREDIT_CARDS_COLLECTION = 'creditCards';
 const APP_SETTINGS_DOC = 'app_settings';
 
 const DEFAULT_PRIMARY_ACCOUNT_NAME = 'Main Account';
@@ -56,6 +60,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<BudgetGoal[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [creditCards, setCreditCards] = useState<(CreditCard & { spent: number })[]>([]);
   const [systemMonth, setSystemMonthState] = useState<number>(new Date().getMonth());
   const [systemYear, setSystemYearState] = useState<number>(new Date().getFullYear());
   const [isDataLoading, setIsDataLoading] = useState(true);
@@ -184,6 +189,39 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       })
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions]);
+  
+  const getCreditCardSpentAmount = useCallback((cardId: string, month: number, year: number): number => {
+      return transactions
+          .filter(t => {
+              const tDate = new Date(t.date);
+              return t.type === 'expense' && t.accountId === cardId && tDate.getMonth() === month && tDate.getFullYear() === year;
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions]);
+
+  // Credit Cards listener
+  useEffect(() => {
+    const q = query(collection(db, CREDIT_CARDS_COLLECTION));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedCards = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            spent: getCreditCardSpentAmount(doc.id, systemMonth, systemYear)
+        } as CreditCard & { spent: number }));
+        setCreditCards(fetchedCards);
+    });
+
+     // Re-calculate spent amounts when transactions or system date changes
+    setCreditCards(prevCards =>
+        prevCards.map(card => ({
+        ...card,
+        spent: getCreditCardSpentAmount(card.id, systemMonth, systemYear),
+        }))
+    );
+
+    return () => unsubscribe();
+  }, [transactions, systemMonth, systemYear, getCreditCardSpentAmount]);
+
 
   useEffect(() => {
     const q = query(collection(db, BUDGETS_COLLECTION));
@@ -226,8 +264,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       createdAt: serverTimestamp() 
     };
     await addDoc(collection(db, TRANSACTIONS_COLLECTION), transactionWithTimestamp);
-    const amountChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
-    await updateAccountBalanceInFirestore(transaction.accountId, amountChange);
+    
+    // Update balance only for non-credit card accounts
+    if (transaction.accountId === 'primary' || transaction.accountId === 'cash') {
+        const amountChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
+        await updateAccountBalanceInFirestore(transaction.accountId, amountChange);
+    }
   };
 
   const deleteTransaction = async (transactionId: string) => {
@@ -235,8 +277,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (!transactionToDelete) return;
     
     await deleteDoc(doc(db, TRANSACTIONS_COLLECTION, transactionId));
-    const amountChange = transactionToDelete.type === 'income' ? -transactionToDelete.amount : transactionToDelete.amount;
-    await updateAccountBalanceInFirestore(transactionToDelete.accountId, amountChange);
+
+    // Update balance only for non-credit card accounts
+    if (transactionToDelete.accountId === 'primary' || transactionToDelete.accountId === 'cash') {
+        const amountChange = transactionToDelete.type === 'income' ? -transactionToDelete.amount : transactionToDelete.amount;
+        await updateAccountBalanceInFirestore(transactionToDelete.accountId, amountChange);
+    }
   };
   
   const addBudget = async (budget: Omit<BudgetGoal, 'id' | 'spent'>) => {
@@ -252,6 +298,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     await deleteDoc(doc(db, BUDGETS_COLLECTION, budgetId));
   };
   
+  const addCreditCard = async (card: Omit<CreditCard, 'id'>) => {
+      await addDoc(collection(db, CREDIT_CARDS_COLLECTION), card);
+  };
+
+  const deleteCreditCard = async (cardId: string) => {
+      await deleteDoc(doc(db, CREDIT_CARDS_COLLECTION, cardId));
+  };
+
   const updateAccountName = async (accountId: 'primary' | 'cash', newName: string) => {
     const accountDocRef = doc(db, ACCOUNTS_COLLECTION, accountId);
     await updateDoc(accountDocRef, { name: newName });
@@ -276,6 +330,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     const budgetsSnapshot = await getDocs(collection(db, BUDGETS_COLLECTION));
     budgetsSnapshot.forEach(doc => batch.delete(doc.ref));
+    
+    const creditCardsSnapshot = await getDocs(collection(db, CREDIT_CARDS_COLLECTION));
+    creditCardsSnapshot.forEach(doc => batch.delete(doc.ref));
     
     const primaryAccountDocRef = doc(db, ACCOUNTS_COLLECTION, 'primary');
     batch.update(primaryAccountDocRef, { balance: 0, name: DEFAULT_PRIMARY_ACCOUNT_NAME });
@@ -306,17 +363,24 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const cashAccountSnap = await getDoc(doc(db, ACCOUNTS_COLLECTION, 'cash'));
     if (cashAccountSnap.exists()) exportedAccounts.push({id: 'cash', ...cashAccountSnap.data()} as Account);
     
+    const creditCardsSnapshot = await getDocs(collection(db, CREDIT_CARDS_COLLECTION));
+    const exportedCreditCards = creditCardsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as CreditCard[];
+
     return { 
         transactions: exportedTransactions, 
         budgets: exportedBudgets.map(b => ({...b, spent: getCategorySpentAmount(b.category, systemMonth, systemYear)})),
         accounts: exportedAccounts, 
+        creditCards: exportedCreditCards,
         systemMonth, 
         systemYear 
     };
   };
 
-  const getAccountById = (accountId: 'primary' | 'cash'): Account | undefined => {
-    return accounts.find(acc => acc.id === accountId);
+  const getAccountById = (accountId: string): Account | CreditCard | undefined => {
+      if (accountId === 'primary' || accountId === 'cash') {
+          return accounts.find(acc => acc.id === accountId);
+      }
+      return creditCards.find(card => card.id === accountId);
   };
 
   return (
@@ -324,6 +388,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       transactions, addTransaction, deleteTransaction,
       budgets, addBudget, updateBudget, deleteBudget,
       accounts, updateAccountBalance, updateAccountName,
+      creditCards, addCreditCard, deleteCreditCard,
       getCategorySpentAmount,
       systemMonth, systemYear, setSystemDate,
       resetAllData, getAllData,

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,7 +21,7 @@ import type { Category, Transaction, Account } from '@/lib/types';
 import { AllCategories, ExpenseCategories, IncomeCategories } from '@/lib/types';
 import { categorizeTransaction } from '@/ai/flows/categorize-transaction'; 
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, Loader2, Landmark, Wallet } from 'lucide-react';
+import { CalendarIcon, Loader2, Landmark, Wallet, CreditCard } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -34,7 +34,7 @@ const transactionFormSchema = z.object({
   date: z.date({ required_error: "Date is required" }),
   type: z.enum(['income', 'expense']),
   category: z.custom<Category>(val => AllCategories.includes(val as Category), "Invalid category"),
-  accountId: z.enum(['primary', 'cash'], { required_error: "Account is required" }),
+  accountId: z.string({ required_error: "Account is required" }), // Changed to string to support credit cards
   vendor: z.string().optional(),
 });
 
@@ -47,7 +47,7 @@ interface AddTransactionDialogProps {
 }
 
 export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }: AddTransactionDialogProps) {
-  const { addTransaction, accounts, getAccountById } = useAppData();
+  const { addTransaction, accounts, creditCards, getAccountById } = useAppData();
   const { toast } = useToast();
   const [isCategorizing, setIsCategorizing] = useState(false);
   
@@ -131,7 +131,6 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
   };
 
   function onSubmit(data: TransactionFormValues) {
-    // Assuming addTransaction in context now handles accountId correctly
     addTransaction({
       ...data,
       date: data.date.toISOString(),
@@ -150,11 +149,6 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
     });
     onOpenChange(false);
   }
-  
-  const accountOptions: { value: 'primary' | 'cash'; label: string; icon: React.ElementType }[] = [
-    { value: 'primary', label: getAccountById('primary')?.name || 'Main Account', icon: Landmark },
-    { value: 'cash', label: getAccountById('cash')?.name || 'Cash Account', icon: Wallet },
-  ];
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -235,17 +229,28 @@ export function AddTransactionDialog({ open, onOpenChange, defaultTransaction }:
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accountOptions.map(opt => {
-                      const Icon = opt.icon;
-                      return (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <div className="flex items-center">
-                            <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                            {opt.label}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                    <SelectGroup>
+                        {accounts.map(acc => (
+                            <SelectItem key={acc.id} value={acc.id}>
+                                <div className="flex items-center">
+                                    {acc.id === 'primary' ? <Landmark className="mr-2 h-4 w-4 text-muted-foreground" /> : <Wallet className="mr-2 h-4 w-4 text-muted-foreground" />}
+                                    {acc.name}
+                                </div>
+                            </SelectItem>
+                        ))}
+                    </SelectGroup>
+                    {creditCards.length > 0 && (
+                        <SelectGroup>
+                            {creditCards.map(card => (
+                                <SelectItem key={card.id} value={card.id}>
+                                    <div className="flex items-center">
+                                        <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+                                        {card.name}
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               )}
