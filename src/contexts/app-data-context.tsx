@@ -33,6 +33,7 @@ interface AppDataContextType {
   creditCards: (CreditCard & { spent: number })[];
   addCreditCard: (card: Omit<CreditCard, 'id'>) => Promise<void>;
   deleteCreditCard: (cardId: string) => Promise<void>;
+  settleCreditCardDues: (cardId: string, cardName: string, amount: number) => Promise<void>;
   updateAccountBalance: (accountId: 'primary' | 'cash', newBalance: number) => Promise<void>;
   updateAccountName: (accountId: 'primary' | 'cash', newName: string) => Promise<void>;
   getCategorySpentAmount: (category: Category, month: number, year: number) => number;
@@ -74,24 +75,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const storedMonth = data.systemMonth;
-        const storedYear = data.systemYear;
-
-        // Check if the stored date matches the actual current date
-        if (storedMonth !== currentMonth || storedYear !== currentYear) {
-            // If not, update it in Firestore. The onSnapshot listener will then
-            // receive this new value and update the state correctly.
-            updateDoc(settingsDocRef, { systemMonth: currentMonth, systemYear: currentYear })
-              .catch(err => console.error("Failed to auto-update system date:", err));
-        }
-
-        // Set the state from the (potentially updated) Firestore data
         setSystemMonthState(data.systemMonth ?? currentMonth);
         setSystemYearState(data.systemYear ?? currentYear);
-
+        // Automatically update to current month if app is loaded in a new month.
+        if (data.systemMonth !== currentMonth || data.systemYear !== currentYear) {
+          updateDoc(settingsDocRef, { systemMonth: currentMonth, systemYear: currentYear })
+            .catch(err => console.error("Failed to auto-update system date:", err));
+        }
       } else {
-        // Doc doesn't exist, so create it with the current month and year.
-        // onSnapshot will trigger again once it's created.
         setDoc(settingsDocRef, { 
           systemMonth: currentMonth, 
           systemYear: currentYear 
@@ -100,7 +91,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }, (error) => console.error("Error fetching app settings:", error));
 
     return () => unsubscribe();
-  }, []); // Empty dependency array ensures this check runs once on mount.
+  }, []);
   
   // Accounts listener for 'primary' and 'cash'
   useEffect(() => {
@@ -110,9 +101,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     const checkAllDataLoaded = () => {
       if (activeListeners === 0) {
-          // Only set loading to false if transactions have also been attempted
-          // This assumes transactions listener might already be running or will run
-          if (!transactionsListenerAttached) { // Add a flag for this
+          if (!transactionsListenerAttached) {
             setIsDataLoading(false);
           }
       }
@@ -169,16 +158,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         } as Transaction);
       });
       setTransactions(fetchedTransactions);
-      // If accounts are already loaded or attempted, and transactions are now loaded:
-      if (accounts.length > 0 || !isDataLoading) { // Check !isDataLoading in case accounts failed but we proceed
+      if (accounts.length > 0 || !isDataLoading) {
           setIsDataLoading(false);
       }
     }, (error) => {
       console.error("Error fetching transactions:", error);
-      setIsDataLoading(false); // Set to false even on error to stop loading state
+      setIsDataLoading(false);
     });
     return () => unsubscribe();
-  }, [accounts, isDataLoading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   const getCategorySpentAmount = useCallback((category: Category, month: number, year: number): number => {
@@ -210,17 +199,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         } as CreditCard & { spent: number }));
         setCreditCards(fetchedCards);
     });
-
-     // Re-calculate spent amounts when transactions or system date changes
-    setCreditCards(prevCards =>
+    return () => unsubscribe();
+  }, [getCreditCardSpentAmount, systemMonth, systemYear]);
+  
+  // This effect ensures that 'spent' amounts for both budgets and credit cards are recalculated
+  // whenever the underlying transaction data or the system date changes.
+  useEffect(() => {
+     setBudgets(prevBudgets =>
+        prevBudgets.map(budget => ({
+          ...budget,
+          spent: getCategorySpentAmount(budget.category, systemMonth, systemYear),
+        }))
+      );
+      setCreditCards(prevCards =>
         prevCards.map(card => ({
-        ...card,
-        spent: getCreditCardSpentAmount(card.id, systemMonth, systemYear),
+          ...card,
+          spent: getCreditCardSpentAmount(card.id, systemMonth, systemYear),
         }))
     );
-
-    return () => unsubscribe();
-  }, [transactions, systemMonth, systemYear, getCreditCardSpentAmount]);
+  }, [transactions, systemMonth, systemYear, getCategorySpentAmount, getCreditCardSpentAmount]);
 
 
   useEffect(() => {
@@ -238,15 +235,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setBudgets(fetchedBudgets);
     }, (error) => console.error("Error fetching budgets:", error));
     
-    setBudgets(prevBudgets =>
-        prevBudgets.map(budget => ({
-          ...budget,
-          spent: getCategorySpentAmount(budget.category, systemMonth, systemYear),
-        }))
-      );
-
     return () => unsubscribe();
-  }, [transactions, systemMonth, systemYear, getCategorySpentAmount]);
+  }, [getCategorySpentAmount, systemMonth, systemYear]);
 
   const updateAccountBalanceInFirestore = async (accountId: 'primary' | 'cash', amountChange: number) => {
     const account = accounts.find(acc => acc.id === accountId);
@@ -265,7 +255,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
     await addDoc(collection(db, TRANSACTIONS_COLLECTION), transactionWithTimestamp);
     
-    // Update balance only for non-credit card accounts
     if (transaction.accountId === 'primary' || transaction.accountId === 'cash') {
         const amountChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
         await updateAccountBalanceInFirestore(transaction.accountId, amountChange);
@@ -278,7 +267,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     
     await deleteDoc(doc(db, TRANSACTIONS_COLLECTION, transactionId));
 
-    // Update balance only for non-credit card accounts
     if (transactionToDelete.accountId === 'primary' || transactionToDelete.accountId === 'cash') {
         const amountChange = transactionToDelete.type === 'income' ? -transactionToDelete.amount : transactionToDelete.amount;
         await updateAccountBalanceInFirestore(transactionToDelete.accountId, amountChange);
@@ -304,6 +292,26 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const deleteCreditCard = async (cardId: string) => {
       await deleteDoc(doc(db, CREDIT_CARDS_COLLECTION, cardId));
+  };
+  
+  const settleCreditCardDues = async (cardId: string, cardName: string, amount: number) => {
+    if (amount <= 0) {
+        throw new Error("No dues to settle.");
+    }
+    const primaryAccount = accounts.find(acc => acc.id === 'primary');
+    if (!primaryAccount || primaryAccount.balance < amount) {
+        throw new Error("Insufficient balance in Main Account to settle dues.");
+    }
+
+    const paymentTransaction: Omit<Transaction, 'id'> = {
+        description: `Payment for ${cardName}`,
+        amount,
+        date: new Date().toISOString(),
+        type: 'expense',
+        category: 'Credit Card Payment',
+        accountId: 'primary',
+    };
+    await addTransaction(paymentTransaction);
   };
 
   const updateAccountName = async (accountId: 'primary' | 'cash', newName: string) => {
@@ -346,8 +354,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     batch.set(settingsDocRef, { systemMonth: currentMonth, systemYear: currentYear });
     
     await batch.commit();
-    // Local state will update via onSnapshot listeners
-    // No need to setIsDataLoading(false) here, listeners will handle it.
   };
   
   const getAllData = async () => {
@@ -388,7 +394,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       transactions, addTransaction, deleteTransaction,
       budgets, addBudget, updateBudget, deleteBudget,
       accounts, updateAccountBalance, updateAccountName,
-      creditCards, addCreditCard, deleteCreditCard,
+      creditCards, addCreditCard, deleteCreditCard, settleCreditCardDues,
       getCategorySpentAmount,
       systemMonth, systemYear, setSystemDate,
       resetAllData, getAllData,

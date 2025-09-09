@@ -20,19 +20,20 @@ export type Category =
   | "Air Fresheners"
   | "FD Returns"
   | "Investment Returns"
+  | "Credit Card Payment"
   | "Other";
 
 export const AllCategories: Category[] = [
   "Food", "Rent/Mortgage", "Transportation", "Utilities", "Healthcare",
   "Entertainment", "Shopping", "Salary", "Investments", "Gifts", "Freelance",
   "Dividends", "Side Hustle", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners",
-  "FD Returns", "Investment Returns", "Other"
+  "FD Returns", "Investment Returns", "Credit Card Payment", "Other"
 ];
 
 export const ExpenseCategories: Category[] = [
   "Food", "Rent/Mortgage", "Transportation", "Utilities", "Healthcare",
   "Entertainment", "Shopping", "Gifts", "Education", "Personal Care", "Subscriptions", "Travel", "Air Fresheners",
-  "Investments", "Other"
+  "Investments", "Credit Card Payment", "Other"
 ];
 
 export const IncomeCategories: Category[] = [
